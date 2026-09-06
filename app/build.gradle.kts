@@ -1,18 +1,17 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.google.services)
 }
 
 android {
     namespace = "com.fourDirection.allDirection"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.fourDirection.allDirection"
         minSdk = 24
-        targetSdk = 35
+        targetSdk = 37
         versionCode = 1
         versionName = "1.0"
 
@@ -32,11 +31,14 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-    kotlinOptions {
-        jvmTarget = "11"
-    }
     buildFeatures {
         compose = true
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
     }
 }
 
@@ -50,6 +52,9 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.google.places)
+    implementation(libs.coil.compose)
+    implementation(libs.haze)
     implementation(platform("com.google.firebase:firebase-bom:34.18.0"))
     implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-auth")

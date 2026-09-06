@@ -5,26 +5,22 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import com.fourDirection.allDirection.data.Auth
 import com.fourDirection.allDirection.data.UserRepository
 import com.fourDirection.allDirection.page.login.LoginPage
 import com.fourDirection.allDirection.page.login.RegisterPage
 import com.fourDirection.allDirection.page.login.WelcomePage
+import com.fourDirection.allDirection.page.main.MainContainer
 import com.fourDirection.allDirection.ui.theme.AllDirectionTheme
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.common.api.ApiException
@@ -53,20 +49,52 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+    @androidx.compose.material3.ExperimentalMaterial3Api
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
         authManager = Auth(this)
         userRepository = UserRepository()
 
-        enableEdgeToEdge()
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
+        )
+        
         setContent {
             AllDirectionTheme {
                 var currentScreen by remember { 
                     mutableStateOf(if (authManager.currentUser != null) Screen.Home else Screen.Welcome) 
                 }
+                var userName by remember { mutableStateOf("User") }
+                var totalDistance by remember { mutableDoubleStateOf(0.0) }
+                var period by remember { mutableStateOf("day") }
 
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                LaunchedEffect(currentScreen) {
+                    if (currentScreen == Screen.Home) {
+                        authManager.currentUser?.uid?.let { uid ->
+                            userRepository.updateLastLogin(uid)
+                            val userData = userRepository.getUserTravelData(uid)
+                            if (userData != null) {
+                                userName = userData["name"] as? String ?: "User"
+                                totalDistance = (userData["totalDistance"] as? Number)?.toDouble() ?: 0.0
+                                
+                                val createdAt = userData["createdAt"] as? com.google.firebase.Timestamp
+                                if (createdAt != null) {
+                                    val diffMillis = System.currentTimeMillis() - createdAt.toDate().time
+                                    val diffDays = diffMillis / (1000 * 60 * 60 * 24)
+                                    period = when {
+                                        diffDays >= 365 -> "${diffDays / 365} year"
+                                        diffDays >= 30 -> "${diffDays / 30} month"
+                                        else -> "${diffDays.coerceAtLeast(1)} day"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Box(modifier = Modifier.fillMaxSize()) {
                     when (currentScreen) {
                         Screen.Welcome -> {
                             WelcomePage(
@@ -115,13 +143,15 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         Screen.Home -> {
-                            HomeScreen(
-                                userName = authManager.currentUser?.displayName ?: "User",
+                            MainContainer(
+                                userName = userName,
+                                userEmail = authManager.currentUser?.email ?: "",
+                                totalDistance = totalDistance,
+                                period = period,
                                 onSignOut = {
                                     authManager.signOut()
                                     currentScreen = Screen.Welcome
-                                },
-                                modifier = Modifier.padding(innerPadding)
+                                }
                             )
                         }
                     }
@@ -149,13 +179,3 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@Composable
-fun HomeScreen(userName: String, onSignOut: () -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier = modifier.fillMaxSize().padding(16.dp)) {
-        Text("Welcome, $userName!", style = androidx.compose.material3.MaterialTheme.typography.headlineMedium)
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(onClick = onSignOut) {
-            Text("Sign Out")
-        }
-    }
-}
