@@ -17,6 +17,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fourDirection.allDirection.page.tinyApps.CurrencyConverterPage
+import com.fourDirection.allDirection.page.tinyApps.EmergencyInfoPage
+import com.fourDirection.allDirection.page.tinyApps.TipCalculatorPage
 import com.fourDirection.allDirection.ui.theme.GlowBlue
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
@@ -40,6 +42,9 @@ fun MainContainer(
 ) {
     var selectedItem by remember { mutableStateOf(0) }
     var isCurrencyConverterVisible by remember { mutableStateOf(false) }
+    var isTipCalculatorVisible by remember { mutableStateOf(false) }
+    var isEmergencyInfoVisible by remember { mutableStateOf(false) }
+    
     val items = listOf(
         NavItem.Home,
         NavItem.Explore,
@@ -52,9 +57,13 @@ fun MainContainer(
     val hazeState = remember { HazeState() }
 
     // Handle system back button
-    BackHandler(enabled = selectedItem != 0 || isCurrencyConverterVisible) {
+    BackHandler(enabled = selectedItem != 0 || isCurrencyConverterVisible || isTipCalculatorVisible || isEmergencyInfoVisible) {
         if (isCurrencyConverterVisible) {
             isCurrencyConverterVisible = false
+        } else if (isTipCalculatorVisible) {
+            isTipCalculatorVisible = false
+        } else if (isEmergencyInfoVisible) {
+            isEmergencyInfoVisible = false
         } else {
             selectedItem = 0
         }
@@ -64,7 +73,7 @@ fun MainContainer(
         containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
-            if (!isCurrencyConverterVisible) {
+            if (!isCurrencyConverterVisible && !isTipCalculatorVisible && !isEmergencyInfoVisible) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -137,7 +146,9 @@ fun MainContainer(
                     totalDistance = totalDistance,
                     period = period,
                     hazeState = hazeState,
-                    onCurrencyClick = { isCurrencyConverterVisible = true }
+                    onCurrencyClick = { isCurrencyConverterVisible = true },
+                    onTipClick = { isTipCalculatorVisible = true },
+                    onEmergencyClick = { isEmergencyInfoVisible = true }
                 )
                 NavItem.Explore -> PlaceholderPage("Explore")
                 NavItem.Booking -> AiPage(hazeState = hazeState)
@@ -151,6 +162,14 @@ fun MainContainer(
 
             if (isCurrencyConverterVisible) {
                 CurrencyConverterPage(onDismiss = { isCurrencyConverterVisible = false })
+            }
+            
+            if (isTipCalculatorVisible) {
+                TipCalculatorPage(onDismiss = { isTipCalculatorVisible = false })
+            }
+            
+            if (isEmergencyInfoVisible) {
+                EmergencyInfoPage(onDismiss = { isEmergencyInfoVisible = false })
             }
 
             // Acknowledge innerPadding to satisfy Scaffold lint without clipping the content
