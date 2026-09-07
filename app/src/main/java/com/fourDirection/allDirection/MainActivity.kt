@@ -33,8 +33,8 @@ enum class Screen {
 }
 
 class MainActivity : ComponentActivity() {
-    private lateinit var authManager: Auth
-    private lateinit var userRepository: UserRepository
+    private val authManager: Auth by lazy { Auth(this) }
+    private val userRepository: UserRepository by lazy { UserRepository() }
 
     private val googleSignInLauncher: ActivityResultLauncher<Intent> =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -53,9 +53,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        authManager = Auth(this)
-        userRepository = UserRepository()
-
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
