@@ -23,7 +23,7 @@ import dev.chrisbanes.haze.hazeChild
 sealed class NavItem(val route: String, val icon: ImageVector, val label: String) {
     data object Home : NavItem("home", Icons.Default.Home, "Home")
     data object Explore : NavItem("explore", Icons.Default.Explore, "Explore")
-    data object Booking : NavItem("AI", Icons.Default.Book, "AI")
+    data object Booking : NavItem("AI", Icons.Default.AutoAwesome, "AI")
     data object Saved : NavItem("saved", Icons.Default.Bookmark, "Saved")
     data object Profile : NavItem("profile", Icons.Default.Person, "Profile")
 }

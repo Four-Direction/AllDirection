@@ -15,10 +15,14 @@ class ChatRepository {
 
     suspend fun saveMessage(message: ChatMessage) {
         val uid = userId ?: return
-        db.collection("users").document(uid)
-            .collection("chats")
-            .add(message)
-            .await()
+        try {
+            db.collection("users").document(uid)
+                .collection("chats")
+                .add(message)
+                .await()
+        } catch (e: Exception) {
+            android.util.Log.e("ChatRepository", "Error saving message", e)
+        }
     }
 
     suspend fun getChatHistory(): List<ChatMessage> {
@@ -38,13 +42,17 @@ class ChatRepository {
 
     suspend fun clearHistory() {
         val uid = userId ?: return
-        val collection = db.collection("users").document(uid).collection("chats")
-        val snapshot = collection.get().await()
-        
-        db.runBatch { batch ->
-            for (document in snapshot.documents) {
-                batch.delete(document.reference)
-            }
-        }.await()
+        try {
+            val collection = db.collection("users").document(uid).collection("chats")
+            val snapshot = collection.get().await()
+            
+            db.runBatch { batch ->
+                for (document in snapshot.documents) {
+                    batch.delete(document.reference)
+                }
+            }.await()
+        } catch (e: Exception) {
+            android.util.Log.e("ChatRepository", "Error clearing history", e)
+        }
     }
 }

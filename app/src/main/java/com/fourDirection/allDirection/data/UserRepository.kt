@@ -8,17 +8,22 @@ class UserRepository {
     private val db = FirebaseFirestore.getInstance()
 
     suspend fun saveUserToFirestore(user: FirebaseUser, customName: String? = null) {
-        val userData = hashMapOf(
-            "uid" to user.uid,
-            "name" to (customName ?: user.displayName ?: ""),
-            "email" to (user.email ?: ""),
-            "photoUrl" to (user.photoUrl?.toString() ?: ""),
-            "createdAt" to com.google.firebase.Timestamp.now(),
-            "totalDistance" to 0.0,
-            "lastLogin" to com.google.firebase.Timestamp.now()
-        )
+        try {
+            val userData = hashMapOf(
+                "uid" to user.uid,
+                "name" to (customName ?: user.displayName ?: ""),
+                "email" to (user.email ?: ""),
+                "photoUrl" to (user.photoUrl?.toString() ?: ""),
+                "createdAt" to com.google.firebase.Timestamp.now(),
+                "totalDistance" to 0.0,
+                "lastLogin" to com.google.firebase.Timestamp.now()
+            )
 
-        db.collection("users").document(user.uid).set(userData).await()
+            db.collection("users").document(user.uid).set(userData).await()
+        } catch (e: Exception) {
+            android.util.Log.e("UserRepository", "Error saving user to Firestore", e)
+            throw e
+        }
     }
 
     suspend fun getUserName(uid: String): String? {

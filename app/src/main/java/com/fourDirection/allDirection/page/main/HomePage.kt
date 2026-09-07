@@ -44,7 +44,6 @@ import coil.compose.AsyncImage
 import com.fourDirection.allDirection.data.TravelRepository
 import com.fourDirection.allDirection.data.TrendingCity
 import com.fourDirection.allDirection.data.backgroundImages
-import com.fourDirection.allDirection.ui.components.NavigationDock
 import com.fourDirection.allDirection.ui.theme.AllDirectionTheme
 import com.fourDirection.allDirection.ui.theme.GlowBlue
 import dev.chrisbanes.haze.HazeState
