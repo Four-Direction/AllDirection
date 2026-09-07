@@ -22,9 +22,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.CurrencyExchange
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -57,6 +57,8 @@ fun HomePage(
     period: String = "day",
     hazeState: HazeState,
     onCurrencyClick: () -> Unit = {},
+    onTipClick: () -> Unit = {},
+    onEmergencyClick: () -> Unit = {},
     selectedRoute: String = "home",
     onRouteSelected: (String) -> Unit = {}
 ) {
@@ -227,8 +229,18 @@ fun HomePage(
                                     label = "Currency",
                                     onClick = onCurrencyClick
                                 )
-                                QuickActionItem(modifier = Modifier.weight(1f), icon = Icons.Default.Favorite, label = "Test")
-                                QuickActionItem(modifier = Modifier.weight(1f), icon = Icons.Default.History, label = "Test")
+                                QuickActionItem(
+                                    modifier = Modifier.weight(1f), 
+                                    icon = Icons.Default.Calculate, 
+                                    label = "Tip Calc",
+                                    onClick = onTipClick
+                                )
+                                QuickActionItem(
+                                    modifier = Modifier.weight(1f), 
+                                    icon = Icons.Default.HealthAndSafety,
+                                    label = "Emergency",
+                                    onClick = onEmergencyClick
+                                )
                             }
                         }
                     }
