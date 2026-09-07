@@ -44,10 +44,11 @@ import coil.compose.AsyncImage
 import com.fourDirection.allDirection.data.TravelRepository
 import com.fourDirection.allDirection.data.TrendingCity
 import com.fourDirection.allDirection.data.backgroundImages
+import com.fourDirection.allDirection.ui.components.NavigationDock
 import com.fourDirection.allDirection.ui.theme.AllDirectionTheme
 import com.fourDirection.allDirection.ui.theme.GlowBlue
 import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.rememberHazeState
+import dev.chrisbanes.haze.hazeChild
 
 @Composable
 fun HomePage(
@@ -55,7 +56,10 @@ fun HomePage(
     userName: String = "User",
     totalDistance: Double = 0.0,
     period: String = "day",
-    hazeState: HazeState = rememberHazeState()
+    hazeState: HazeState,
+    onCurrencyClick: () -> Unit = {},
+    selectedRoute: String = "home",
+    onRouteSelected: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val travelRepository = remember { TravelRepository(context) }
@@ -140,12 +144,13 @@ fun HomePage(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(64.dp)
-                            .clip(MaterialTheme.shapes.extraLarge),
+                            .clip(MaterialTheme.shapes.extraLarge)
+                            .hazeChild(state = hazeState),
                         shape = MaterialTheme.shapes.extraLarge,
-                        color = Color.White.copy(alpha = 0.3f),
+                        color = Color.White.copy(alpha = 0.15f),
                         border = androidx.compose.foundation.BorderStroke(
                             1.dp, 
-                            Color.White.copy(alpha = 0.4f)
+                            Color.White.copy(alpha = 0.2f)
                         )
                     ) {
                         TextField(
@@ -217,7 +222,12 @@ fun HomePage(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                QuickActionItem(modifier = Modifier.weight(1f), icon = Icons.Default.CurrencyExchange, label = "Currency")
+                                QuickActionItem(
+                                    modifier = Modifier.weight(1f), 
+                                    icon = Icons.Default.CurrencyExchange, 
+                                    label = "Currency",
+                                    onClick = onCurrencyClick
+                                )
                                 QuickActionItem(modifier = Modifier.weight(1f), icon = Icons.Default.Favorite, label = "Test")
                                 QuickActionItem(modifier = Modifier.weight(1f), icon = Icons.Default.History, label = "Test")
                             }
@@ -265,6 +275,8 @@ fun HomePage(
                 }
             }
         }
+
+        // NavigationDock is now managed by MainContainer
     }
 }
 
@@ -364,6 +376,6 @@ fun TrendingCityCard(
 @Composable
 fun HomePagePreview() {
     AllDirectionTheme {
-        HomePage()
+        HomePage(hazeState = HazeState())
     }
 }
