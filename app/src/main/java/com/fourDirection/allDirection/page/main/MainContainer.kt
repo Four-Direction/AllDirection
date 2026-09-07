@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.fourDirection.allDirection.page.tinyApps.CurrencyConverterPage
 import com.fourDirection.allDirection.ui.theme.GlowBlue
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
@@ -37,6 +38,7 @@ fun MainContainer(
     onSignOut: () -> Unit
 ) {
     var selectedItem by remember { mutableStateOf(0) }
+    var isCurrencyConverterVisible by remember { mutableStateOf(false) }
     val items = listOf(
         NavItem.Home,
         NavItem.Explore,
@@ -52,57 +54,59 @@ fun MainContainer(
         containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 24.dp),
-                contentAlignment = androidx.compose.ui.Alignment.Center
-            ) {
-                Surface(
+            if (!isCurrencyConverterVisible) {
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(CircleShape)
-                        .hazeChild(state = hazeState),
-                    shape = CircleShape,
-                    color = Color.White.copy(alpha = 0.15f),
-                    border = androidx.compose.foundation.BorderStroke(0.5.dp, Color.White.copy(alpha = 0.2f)),
-                    tonalElevation = 0.dp
+                        .padding(horizontal = 24.dp, vertical = 24.dp),
+                    contentAlignment = androidx.compose.ui.Alignment.Center
                 ) {
-                    Row(
+                    Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 12.dp, horizontal = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceAround,
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                            .clip(CircleShape)
+                            .hazeChild(state = hazeState),
+                        shape = CircleShape,
+                        color = Color.White.copy(alpha = 0.15f),
+                        border = androidx.compose.foundation.BorderStroke(0.5.dp, Color.White.copy(alpha = 0.2f)),
+                        tonalElevation = 0.dp
                     ) {
-                        items.forEachIndexed { index, item ->
-                            val isSelected = selectedItem == index
-                            val color = if (isSelected) GlowBlue else Color.White.copy(alpha = 0.6f)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp, horizontal = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceAround,
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            items.forEachIndexed { index, item ->
+                                val isSelected = selectedItem == index
+                                val color = if (isSelected) GlowBlue else Color.White.copy(alpha = 0.6f)
 
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(CircleShape)
-                                    .clickable { selectedItem = index },
-                                contentAlignment = androidx.compose.ui.Alignment.Center
-                            ) {
-                                Column(
-                                    horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.Center
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(CircleShape)
+                                        .clickable { selectedItem = index },
+                                    contentAlignment = androidx.compose.ui.Alignment.Center
                                 ) {
-                                    Icon(
-                                        imageVector = item.icon,
-                                        contentDescription = item.label,
-                                        tint = color,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                    if (isSelected) {
-                                        Text(
-                                            text = item.label,
-                                            color = color,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.Bold
+                                    Column(
+                                        horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = item.icon,
+                                            contentDescription = item.label,
+                                            tint = color,
+                                            modifier = Modifier.size(24.dp)
                                         )
+                                        if (isSelected) {
+                                            Text(
+                                                text = item.label,
+                                                color = color,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -122,7 +126,8 @@ fun MainContainer(
                     userName = userName,
                     totalDistance = totalDistance,
                     period = period,
-                    hazeState = hazeState
+                    hazeState = hazeState,
+                    onCurrencyClick = { isCurrencyConverterVisible = true }
                 )
                 NavItem.Explore -> PlaceholderPage("Explore")
                 NavItem.Booking -> AiPage(hazeState = hazeState)
@@ -132,6 +137,10 @@ fun MainContainer(
                     userEmail = userEmail,
                     onSignOut = onSignOut
                 )
+            }
+
+            if (isCurrencyConverterVisible) {
+                CurrencyConverterPage(onDismiss = { isCurrencyConverterVisible = false })
             }
 
             // Acknowledge innerPadding to satisfy Scaffold lint without clipping the content
