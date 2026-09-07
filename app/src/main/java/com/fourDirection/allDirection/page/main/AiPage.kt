@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,8 +26,8 @@ import com.fourDirection.allDirection.ui.theme.GlowBlue
 import dev.chrisbanes.haze.HazeState
 
 data class ChatMessage(
-    val text: String,
-    val isUser: Boolean,
+    val text: String = "",
+    val isUser: Boolean = false,
     val timestamp: Long = System.currentTimeMillis()
 )
 
@@ -37,6 +38,7 @@ fun AiPage(
     viewModel: AiViewModel = viewModel()
 ) {
     var inputText by remember { mutableStateOf("") }
+    var showDeleteDialog by remember { mutableStateOf(false) }
     val messages = viewModel.messages
     val listState = rememberLazyListState()
 
@@ -45,6 +47,32 @@ fun AiPage(
         if (messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.size - 1)
         }
+    }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Clear Chat History?") },
+            text = { Text("This will permanently delete all messages from this conversation.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.clearChat()
+                        showDeleteDialog = false
+                    }
+                ) {
+                    Text("Clear", color = Color.Red)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Cancel", color = Color.White)
+                }
+            },
+            containerColor = Color(0xFF1A1A1A),
+            titleContentColor = Color.White,
+            textContentColor = Color.White.copy(alpha = 0.7f)
+        )
     }
 
     Box(
@@ -76,8 +104,18 @@ fun AiPage(
                     text = "AI Travel Assistant",
                     color = Color.White,
                     fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
                 )
+                IconButton(
+                    onClick = { showDeleteDialog = true }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Clear History",
+                        tint = Color.White.copy(alpha = 0.5f)
+                    )
+                }
             }
 
             // Chat Messages
