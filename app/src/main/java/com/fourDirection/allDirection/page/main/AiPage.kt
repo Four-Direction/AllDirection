@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -18,6 +19,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.fourDirection.allDirection.ai.AiViewModel
 import com.fourDirection.allDirection.ui.theme.GlowBlue
 import dev.chrisbanes.haze.HazeState
 
@@ -30,13 +33,18 @@ data class ChatMessage(
 @Composable
 fun AiPage(
     modifier: Modifier = Modifier,
-    hazeState: HazeState
+    hazeState: HazeState,
+    viewModel: AiViewModel = viewModel()
 ) {
     var inputText by remember { mutableStateOf("") }
-    val messages = remember {
-        mutableStateListOf(
-            ChatMessage("Hello! I'm your travel assistant. How can I help you today?", false)
-        )
+    val messages = viewModel.messages
+    val listState = rememberLazyListState()
+
+    // Scroll to bottom when messages change
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) {
+            listState.animateScrollToItem(messages.size - 1)
+        }
     }
 
     Box(
@@ -74,6 +82,7 @@ fun AiPage(
 
             // Chat Messages
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth(),
@@ -82,6 +91,12 @@ fun AiPage(
             ) {
                 items(messages) { message ->
                     ChatBubble(message)
+                }
+                
+                if (viewModel.isLoading) {
+                    item {
+                        TypingIndicator()
+                    }
                 }
             }
 
@@ -118,31 +133,66 @@ fun AiPage(
                         focusedIndicatorColor = Color.Transparent,
                         unfocusedIndicatorColor = Color.Transparent
                     ),
-                    singleLine = true
+                    singleLine = true,
+                    enabled = !viewModel.isLoading
                 )
 
                 IconButton(
                     onClick = {
-                        if (inputText.isNotBlank()) {
-                            messages.add(ChatMessage(inputText, true))
-                            val userQuery = inputText
+                        if (inputText.isNotBlank() && !viewModel.isLoading) {
+                            val text = inputText
                             inputText = ""
-                            // Simulate response
-                            messages.add(ChatMessage("I can help you plan a trip to $userQuery. Would you like to see flights or hotels?", false))
+                            viewModel.sendMessage(text)
                         }
                     },
+                    enabled = inputText.isNotBlank() && !viewModel.isLoading,
                     modifier = Modifier
                         .size(40.dp)
-                        .background(GlowBlue, CircleShape)
+                        .background(
+                            if (inputText.isNotBlank() && !viewModel.isLoading) GlowBlue 
+                            else GlowBlue.copy(alpha = 0.5f), 
+                            CircleShape
+                        )
                 ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Send,
-                        contentDescription = "Send",
-                        tint = Color.Black,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    if (viewModel.isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = Color.Black,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Send,
+                            contentDescription = "Send",
+                            tint = Color.Black,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun TypingIndicator() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.Start
+    ) {
+        Surface(
+            color = Color.White.copy(alpha = 0.15f),
+            shape = RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp)
+        ) {
+            Text(
+                text = "Typing...",
+                color = Color.White.copy(alpha = 0.7f),
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium
+            )
         }
     }
 }
