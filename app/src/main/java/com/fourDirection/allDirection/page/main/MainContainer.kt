@@ -124,7 +124,7 @@ fun MainContainer(
                     period = period,
                     hazeState = hazeState
                 )
-                NavItem.Explore -> PlaceholderPage("Explore")
+                NavItem.Explore -> ExplorePage()
                 NavItem.Booking -> AiPage(hazeState = hazeState)
                 NavItem.Saved -> PlaceholderPage("Saved")
                 NavItem.Profile -> ProfilePage(

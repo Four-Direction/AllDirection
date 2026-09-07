@@ -1,10 +1,11 @@
 package com.fourDirection.allDirection.ai
 
+import android.util.Log
 import androidx.compose.runtime.*
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fourDirection.allDirection.data.ChatMessage
 import com.fourDirection.allDirection.data.ChatRepository
-import com.fourDirection.allDirection.page.main.ChatMessage
 import kotlinx.coroutines.launch
 
 class AiViewModel : ViewModel() {
@@ -20,12 +21,17 @@ class AiViewModel : ViewModel() {
         loadChatHistory()
     }
 
-    private fun loadChatHistory() {
+    fun loadChatHistory() {
         viewModelScope.launch {
+            Log.d("AiViewModel", "Loading chat history...")
             val history = chatRepository.getChatHistory()
+            messages.clear()
+            // Always start with the welcome message if the history is empty
             if (history.isEmpty()) {
+                Log.d("AiViewModel", "History empty, adding welcome message")
                 messages.add(ChatMessage("Hello! I'm your travel assistant. How can I help you today?", false))
             } else {
+                Log.d("AiViewModel", "Adding ${history.size} messages to UI")
                 messages.addAll(history)
             }
         }
@@ -39,6 +45,7 @@ class AiViewModel : ViewModel() {
         isLoading = true
         
         viewModelScope.launch {
+            Log.d("AiViewModel", "Sending message and saving to Firestore: $text")
             // Save user message
             chatRepository.saveMessage(userMessage)
             
@@ -55,6 +62,7 @@ class AiViewModel : ViewModel() {
 
     fun clearChat() {
         viewModelScope.launch {
+            android.util.Log.d("AiViewModel", "Clearing chat history...")
             chatRepository.clearHistory()
             messages.clear()
             messages.add(ChatMessage("Hello! I'm your travel assistant. How can I help you today?", false))

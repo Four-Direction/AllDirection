@@ -22,21 +22,24 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fourDirection.allDirection.ai.AiViewModel
+import com.fourDirection.allDirection.data.ChatMessage
 import com.fourDirection.allDirection.ui.theme.GlowBlue
+import com.google.firebase.auth.FirebaseAuth
 import dev.chrisbanes.haze.HazeState
-
-data class ChatMessage(
-    val text: String = "",
-    val isUser: Boolean = false,
-    val timestamp: Long = System.currentTimeMillis()
-)
 
 @Composable
 fun AiPage(
     modifier: Modifier = Modifier,
-    hazeState: HazeState,
-    viewModel: AiViewModel = viewModel()
+    hazeState: HazeState
 ) {
+    val userId = remember { FirebaseAuth.getInstance().currentUser?.uid ?: "anonymous" }
+    val viewModel: AiViewModel = viewModel(key = userId)
+    
+    // Refresh history when page is opened or user changes
+    LaunchedEffect(userId) {
+        viewModel.loadChatHistory()
+    }
+    
     var inputText by remember { mutableStateOf("") }
     var showDeleteDialog by remember { mutableStateOf(false) }
     val messages = viewModel.messages
@@ -139,13 +142,14 @@ fun AiPage(
             }
 
             // Input Area
+            val inputBgColor = if (viewModel.isLoading) Color.Black.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.1f)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 120.dp) // Leave space for the bottom dock
                     .height(56.dp)
                     .clip(RoundedCornerShape(28.dp))
-                    .background(Color.White.copy(alpha = 0.1f))
+                    .background(inputBgColor)
                     .padding(horizontal = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -157,7 +161,7 @@ fun AiPage(
                         .fillMaxHeight(),
                     placeholder = {
                         Text(
-                            "Ask about destinations...",
+                            if (viewModel.isLoading) "AI is thinking..." else "Ask about destinations...",
                             color = Color.White.copy(alpha = 0.5f),
                             fontSize = 14.sp
                         )
@@ -165,11 +169,14 @@ fun AiPage(
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = Color.Transparent,
                         unfocusedContainerColor = Color.Transparent,
+                        disabledContainerColor = Color.Transparent,
                         focusedTextColor = Color.White,
                         unfocusedTextColor = Color.White,
+                        disabledTextColor = Color.White.copy(alpha = 0.5f),
                         cursorColor = GlowBlue,
                         focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent
+                        unfocusedIndicatorColor = Color.Transparent,
+                        disabledIndicatorColor = Color.Transparent
                     ),
                     singleLine = true,
                     enabled = !viewModel.isLoading

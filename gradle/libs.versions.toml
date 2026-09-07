@@ -13,6 +13,10 @@ playServicesAuth = "21.3.0"
 googlePlaces = "5.3.0"
 coil = "2.7.0"
 haze = "1.7.3"
+googleMapsCompose = "8.6.0"
+playServicesMaps = "20.0.0"
+mapbox = "11.10.0"
+mapboxSearch = "2.6.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -37,6 +41,12 @@ androidx-compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-
 androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
 androidx-compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
+google-maps-compose = { group = "com.google.maps.android", name = "maps-compose", version.ref = "googleMapsCompose" }
+play-services-maps = { group = "com.google.android.gms", name = "play-services-maps", version.ref = "playServicesMaps" }
+mapbox-maps = { group = "com.mapbox.maps", name = "android", version.ref = "mapbox" }
+mapbox-compose = { group = "com.mapbox.extension", name = "maps-compose", version.ref = "mapbox" }
+mapbox-search-sdk = { group = "com.mapbox.search", name = "mapbox-search-android", version.ref = "mapboxSearch" }
+mapbox-search-ui = { group = "com.mapbox.search", name = "mapbox-search-android-ui", version.ref = "mapboxSearch" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
