@@ -23,7 +23,7 @@ import dev.chrisbanes.haze.hazeChild
 sealed class NavItem(val route: String, val icon: ImageVector, val label: String) {
     data object Home : NavItem("home", Icons.Default.Home, "Home")
     data object Explore : NavItem("explore", Icons.Default.Explore, "Explore")
-    data object Booking : NavItem("booking", Icons.Default.Book, "Booking")
+    data object Booking : NavItem("AI", Icons.Default.Book, "AI")
     data object Saved : NavItem("saved", Icons.Default.Bookmark, "Saved")
     data object Profile : NavItem("profile", Icons.Default.Person, "Profile")
 }
@@ -125,7 +125,7 @@ fun MainContainer(
                     hazeState = hazeState
                 )
                 NavItem.Explore -> PlaceholderPage("Explore")
-                NavItem.Booking -> PlaceholderPage("Booking")
+                NavItem.Booking -> AiPage(hazeState = hazeState)
                 NavItem.Saved -> PlaceholderPage("Saved")
                 NavItem.Profile -> ProfilePage(
                     userName = userName,
