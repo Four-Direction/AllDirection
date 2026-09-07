@@ -1,5 +1,6 @@
 package com.fourDirection.allDirection.page.main
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -49,6 +50,15 @@ fun MainContainer(
     
     // Initialize HazeState for backdrop blur
     val hazeState = remember { HazeState() }
+
+    // Handle system back button
+    BackHandler(enabled = selectedItem != 0 || isCurrencyConverterVisible) {
+        if (isCurrencyConverterVisible) {
+            isCurrencyConverterVisible = false
+        } else {
+            selectedItem = 0
+        }
+    }
 
     Scaffold(
         containerColor = Color.Transparent,
