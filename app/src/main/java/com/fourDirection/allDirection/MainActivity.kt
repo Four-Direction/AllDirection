@@ -67,7 +67,7 @@ class MainActivity : ComponentActivity() {
                 var totalDistance by remember { mutableDoubleStateOf(0.0) }
                 var period by remember { mutableStateOf("day") }
 
-                LaunchedEffect(currentScreen) {
+                LaunchedEffect(currentScreen, authManager.currentUser) {
                     if (currentScreen == Screen.Home) {
                         authManager.currentUser?.uid?.let { uid ->
                             userRepository.updateLastLogin(uid)
@@ -95,7 +95,6 @@ class MainActivity : ComponentActivity() {
                     when (currentScreen) {
                         Screen.Welcome -> {
                             WelcomePage(
-                                onSignUpWithGoogle = { startGoogleSignIn() },
                                 onSignUp = { currentScreen = Screen.Register },
                                 onLogin = { currentScreen = Screen.Login }
                             )
