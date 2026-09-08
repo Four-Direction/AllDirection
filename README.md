@@ -1,7 +1,7 @@
 # Direction by Four Direction
 ## Project Logo
 <p align="center">
-  <img src="app_logo.jpeg" width="250" style="border-radius: 50%;">
+  <img src="app_logo.jpeg" width="250" height="250" style="border-radius: 50%; object-fit: cover;">
 </p>
 
 **Team**: Tan Yi, Lee Jun Le, Kho Kian Bin, Shawn  
