@@ -1,5 +1,7 @@
 # Direction by Four Direction
-![Project Logo](app_logo.jpeg)
+![Project Logo](<p align="center">
+  <img src="app_logo.jpeg" width="300">
+</p>)
 **Team**: Tan Yi, Lee Jun Le, Kho Kian Bin, Shawn  
 **Problem** **Statement**: Travel Planner  
 **Video** **Presentation**:   
