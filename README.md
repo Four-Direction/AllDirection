@@ -14,10 +14,11 @@
 **Presentation** **Slides**:   
 ## 1. Project Overview
 
-**The** **Problem**： Need to keep switching apps for multiple functions, such as: Budget tracker app, AI, Google Map, Whatsapp (Social Media) and so on. It may cause inconvenient and misunderstanding
+**The Problem:**  
+Travelers often have to switch between multiple apps for different purposes, such as budget tracking, AI assistance, navigation, and social communication. This creates an inconvenient and fragmented experience, making it harder to manage everything in one place.
 
-**Our** **Solution**： Combine all functions into one app. Beside that, we upgreate all the function of the app, such as: budget tracker, AI planner, Map, AI co-pilot, Emergency Info, Group chat and community, all this function have their highlight compare to the market function
-
+**Our Solution:**  
+Our app integrates these essential functions into a single travel platform. It combines **budget tracking, AI trip planning, navigation, an AI co-pilot, emergency information, group chat, and a community platform** to provide travelers with a more seamless, convenient, and comprehensive travel experience. Besides that, each feature is designed with unique improvements and advantages compared to existing solutions in the market.
 
 
 
