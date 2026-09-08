@@ -705,5 +705,6 @@ fun TrendingCityCard(
 fun HomePagePreview() {
     AllDirectionTheme {
         HomePage(hazeState = HazeState())
+        ExplorePage(hazeState = HazeState())
     }
 }

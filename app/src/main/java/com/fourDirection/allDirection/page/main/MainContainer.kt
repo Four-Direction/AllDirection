@@ -86,11 +86,10 @@ fun MainContainer(
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(CircleShape)
-                            .hazeChild(state = hazeState),
+                            .clip(CircleShape),
                         shape = CircleShape,
-                        color = Color.White.copy(alpha = 0.15f),
-                        border = androidx.compose.foundation.BorderStroke(0.5.dp, Color.White.copy(alpha = 0.2f)),
+                        color = Color.DarkGray.copy(alpha = 0.8f),
+                        border = androidx.compose.foundation.BorderStroke(0.5.dp, Color.Black.copy(alpha = 0.8f)),
                         tonalElevation = 0.dp
                     ) {
                         Row(
@@ -154,7 +153,7 @@ fun MainContainer(
                     onEmergencyClick = { isEmergencyInfoVisible = true },
                     onCalendarClick = { selectedItem = items.indexOf(NavItem.Calendar) }
                 )
-                NavItem.Explore -> ExplorePage()
+                NavItem.Explore -> ExplorePage(hazeState = hazeState)
                 NavItem.Calendar -> CalendarPage()
                 NavItem.Booking -> AiPage(hazeState = hazeState)
                 NavItem.Saved -> PlaceholderPage("Saved")

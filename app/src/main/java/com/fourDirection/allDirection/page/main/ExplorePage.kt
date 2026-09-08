@@ -31,6 +31,8 @@ import com.mapbox.maps.extension.compose.animation.viewport.rememberMapViewportS
 import com.mapbox.search.*
 import com.mapbox.search.result.SearchResult
 import com.mapbox.search.result.SearchSuggestion
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
@@ -126,7 +128,8 @@ class ExploreViewModel : ViewModel() {
 @Composable
 fun ExplorePage(
     modifier: Modifier = Modifier,
-    exploreViewModel: ExploreViewModel = viewModel()
+    exploreViewModel: ExploreViewModel = viewModel(),
+    hazeState: HazeState
 ) {
     val accessToken = "pk.eyJ1IjoiamFuZGRpIiwiYSI6ImNtdG9qYmx1ejB1cTEyd29majMxYzRvenMifQ.MHg_MphmkzDyLjIYLdLnmQ"
     var isMapReady by remember { mutableStateOf(false) }
@@ -151,6 +154,7 @@ fun ExplorePage(
         modifier = modifier
             .fillMaxSize()
             .background(Color.Black)
+            .hazeSource(state = hazeState)
     ) {
         // Mapbox Map
         if (isMapReady) {
