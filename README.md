@@ -1,5 +1,4 @@
 # Direction by Four Direction
-## Project Logo
 <details>
 <summary>View App Logo</summary>
 
