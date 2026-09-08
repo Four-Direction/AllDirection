@@ -1,8 +1,8 @@
 # Direction by Four Direction
-**Team**: Tan Yi, Lee Jun Le, Kho Kian Bin, Shawn
-**Problem** **Statement**: Travel Planner
-**Video** **Presentation**: 
-**Presentation** **Slides**: 
+**Team**: Tan Yi, Lee Jun Le, Kho Kian Bin, Shawn  
+**Problem** **Statement**: Travel Planner  
+**Video** **Presentation**:   
+**Presentation** **Slides**:   
 ## 1. Project Overview
 
 **The** **Problem**： Need to keep switching apps for multiple functions, such as: Budget tracker app, AI, Google Map, Whatsapp (Social Media) and so on. It may cause inconvenient and misunderstanding
