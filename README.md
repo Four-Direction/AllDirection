@@ -9,7 +9,7 @@
 </details>
 
 **Team**: Tan Yi, Lee Jun Le, Kho Kian Bin, Shawn  
-**Problem** **Statement**: Travel Planner  
+**Problem** **Statement**: Lifestyle Track: Planning an Escape (Travel Planner)  
 **Video** **Presentation**:   
 **Presentation** **Slides**:   
 ## 1. Project Overview
