@@ -1,7 +1,20 @@
 package com.fourDirection.allDirection.page.main
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.round
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.geometry.Size
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateOffsetAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +25,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -22,24 +36,29 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Calculate
-import androidx.compose.material.icons.filled.CurrencyExchange
-import androidx.compose.material.icons.filled.HealthAndSafety
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.automirrored.filled.*
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import coil.compose.AsyncImage
 import com.fourDirection.allDirection.data.TravelRepository
 import com.fourDirection.allDirection.data.TrendingCity
@@ -59,6 +78,7 @@ fun HomePage(
     onCurrencyClick: () -> Unit = {},
     onTipClick: () -> Unit = {},
     onEmergencyClick: () -> Unit = {},
+    onCalendarClick: () -> Unit = {},
     selectedRoute: String = "home",
     onRouteSelected: (String) -> Unit = {}
 ) {
@@ -66,6 +86,36 @@ fun HomePage(
     val travelRepository = remember { TravelRepository(context) }
     var trendingCities by remember { mutableStateOf<List<TrendingCity>>(emptyList()) }
     val scrollState = rememberScrollState()
+
+    // Quick Action Definitions
+    val allActions = remember {
+        mutableStateListOf(
+            "currency" to (Icons.Default.CurrencyExchange to "Currency"),
+            "tip" to (Icons.Default.Calculate to "Tip Calc"),
+            "emergency" to (Icons.Default.HealthAndSafety to "Emergency"),
+            "calendar" to (Icons.Default.CalendarToday to "Calendar"),
+            "translate" to (Icons.Default.Translate to "Translate"),
+            "map" to (Icons.Default.Map to "Offline Map")
+        )
+    }
+
+    // Drag and Drop state for Quick Actions
+    var draggedIndex by remember { mutableStateOf<Int?>(null) }
+    var targetIndex by remember { mutableStateOf<Int?>(null) }
+    var dragOffset by remember { mutableStateOf(Offset.Zero) }
+    var touchOffsetInItem by remember { mutableStateOf(Offset.Zero) }
+    val slotPositions = remember { mutableStateMapOf<Int, Offset>() }
+    val slotSizes = remember { mutableStateMapOf<Int, IntSize>() }
+    var rootCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
+
+    val actionClickHandlers = mapOf(
+        "currency" to onCurrencyClick,
+        "tip" to onTipClick,
+        "emergency" to onEmergencyClick,
+        "calendar" to onCalendarClick,
+        "translate" to {},
+        "map" to {}
+    )
 
     // Fetch live trending cities from the repository
     LaunchedEffect(Unit) {
@@ -78,6 +128,7 @@ fun HomePage(
     Box(
         modifier = modifier
             .fillMaxSize()
+            .onGloballyPositioned { rootCoordinates = it }
     ) {
         // --- SCROLLABLE CONTENT ---
         Column(
@@ -149,7 +200,7 @@ fun HomePage(
                             .hazeChild(state = hazeState),
                         shape = MaterialTheme.shapes.extraLarge,
                         color = Color.White.copy(alpha = 0.15f),
-                        border = androidx.compose.foundation.BorderStroke(
+                        border = BorderStroke(
                             1.dp, 
                             Color.White.copy(alpha = 0.2f)
                         )
@@ -189,11 +240,16 @@ fun HomePage(
                     Spacer(modifier = Modifier.height(24.dp))
 
                     // --- QUICK ACTION WIDGET ---
+                    var isExpanded by remember { mutableStateOf(false) }
+                    var isRearranging by remember { mutableStateOf(false) }
+
                     Surface(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .animateContentSize(),
                         shape = MaterialTheme.shapes.extraLarge,
                         color = Color.White.copy(alpha = 0.05f),
-                        border = androidx.compose.foundation.BorderStroke(
+                        border = BorderStroke(
                             1.dp,
                             Color.White.copy(alpha = 0.1f)
                         )
@@ -202,45 +258,272 @@ fun HomePage(
                             modifier = Modifier.padding(20.dp)
                         ) {
                             Row(
-                                verticalAlignment = Alignment.CenterVertically
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(
-                                    text = "Quick Actions",
-                                    color = Color.White,
-                                    fontSize = 20.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(modifier = Modifier.width(120.dp))
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                    contentDescription = null,
-                                    tint = Color.White.copy(alpha = 0.7f),
-                                    modifier = Modifier.size(20.dp)
-                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "Quick Actions",
+                                        color = Color.White,
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    IconButton(
+                                        onClick = { isExpanded = !isExpanded },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                            contentDescription = if (isExpanded) "Collapse" else "Expand",
+                                            tint = Color.White.copy(alpha = 0.7f)
+                                        )
+                                    }
+                                }
+                                
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    AnimatedVisibility(
+                                        visible = isRearranging,
+                                        enter = fadeIn(),
+                                        exit = fadeOut()
+                                    ) {
+                                        Text(
+                                            text = "Hold to rearrange",
+                                            color = GlowBlue.copy(alpha = 0.8f),
+                                            fontSize = 12.sp,
+                                            modifier = Modifier.padding(end = 8.dp)
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = { isRearranging = !isRearranging },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isRearranging) Icons.Default.Check else Icons.Default.Edit,
+                                            contentDescription = "Rearrange",
+                                            tint = if (isRearranging) GlowBlue else Color.White.copy(alpha = 0.7f),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
                             }
+                            
                             Spacer(modifier = Modifier.height(20.dp))
+                            
+                            // First Row (Indices 0, 1, 2)
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                QuickActionItem(
-                                    modifier = Modifier.weight(1f), 
-                                    icon = Icons.Default.CurrencyExchange, 
-                                    label = "Currency",
-                                    onClick = onCurrencyClick
-                                )
-                                QuickActionItem(
-                                    modifier = Modifier.weight(1f), 
-                                    icon = Icons.Default.Calculate, 
-                                    label = "Tip Calc",
-                                    onClick = onTipClick
-                                )
-                                QuickActionItem(
-                                    modifier = Modifier.weight(1f), 
-                                    icon = Icons.Default.HealthAndSafety,
-                                    label = "Emergency",
-                                    onClick = onEmergencyClick
-                                )
+                                for (i in 0..2) {
+                                    if (i < allActions.size) {
+                                        val (id, data) = allActions[i]
+                                        key(id) {
+                                            val targetSlot = when {
+                                                draggedIndex == null || targetIndex == null -> i
+                                                i == draggedIndex -> targetIndex!!
+                                                draggedIndex!! < targetIndex!! && i > draggedIndex!! && i <= targetIndex!! -> i - 1
+                                                draggedIndex!! > targetIndex!! && i < draggedIndex!! && i >= targetIndex!! -> i + 1
+                                                else -> i
+                                            }
+
+                                            val itemOffset = if (targetSlot != i) {
+                                                val currentPos = slotPositions[i] ?: Offset.Zero
+                                                val targetPos = slotPositions[targetSlot] ?: Offset.Zero
+                                                targetPos - currentPos
+                                            } else {
+                                                Offset.Zero
+                                            }
+
+                                            val animatedOffset by animateOffsetAsState(
+                                                targetValue = itemOffset,
+                                                label = "shiftOffset"
+                                            )
+
+                                            QuickActionItem(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .onGloballyPositioned { coords ->
+                                                        rootCoordinates?.let { root ->
+                                                            slotPositions[i] = root.localPositionOf(coords, Offset.Zero)
+                                                            slotSizes[i] = coords.size
+                                                        }
+                                                    }
+                                                    .graphicsLayer {
+                                                        translationX = animatedOffset.x
+                                                        translationY = animatedOffset.y
+                                                        alpha = if (draggedIndex == i) 0.3f else 1f
+                                                    }
+                                                    .zIndex(if (draggedIndex == i) 0f else 1f)
+                                                    .pointerInput(isRearranging, i) {
+                                                        if (isRearranging) {
+                                                            detectDragGesturesAfterLongPress(
+                                                                onDragStart = { offset ->
+                                                                    draggedIndex = i
+                                                                    targetIndex = i
+                                                                    dragOffset = Offset.Zero
+                                                                    touchOffsetInItem = offset
+                                                                },
+                                                                onDrag = { change, amount ->
+                                                                    change.consume()
+                                                                    dragOffset += amount
+                                                                    
+                                                                    val currentDragPosition = (slotPositions[i] ?: Offset.Zero) + touchOffsetInItem + dragOffset
+                                                                    
+                                                                    var bestTarget = targetIndex
+                                                                    var minDistance = Float.MAX_VALUE
+                                                                    
+                                                                    slotPositions.forEach { (index, pos) ->
+                                                                        val size = slotSizes[index] ?: return@forEach
+                                                                        val center = pos + Offset(size.width / 2f, size.height / 2f)
+                                                                        val distance = (center - currentDragPosition).getDistance()
+                                                                        if (distance < minDistance) {
+                                                                            minDistance = distance
+                                                                            bestTarget = index
+                                                                        }
+                                                                    }
+                                                                    
+                                                                    if (bestTarget != targetIndex) {
+                                                                        targetIndex = bestTarget
+                                                                    }
+                                                                },
+                                                                onDragEnd = {
+                                                                    if (draggedIndex != null && targetIndex != null && draggedIndex != targetIndex) {
+                                                                        val item = allActions.removeAt(draggedIndex!!)
+                                                                        allActions.add(targetIndex!!, item)
+                                                                    }
+                                                                    draggedIndex = null
+                                                                    targetIndex = null
+                                                                    dragOffset = Offset.Zero
+                                                                },
+                                                                onDragCancel = {
+                                                                    draggedIndex = null
+                                                                    targetIndex = null
+                                                                    dragOffset = Offset.Zero
+                                                                }
+                                                            )
+                                                        }
+                                                    },
+                                                icon = data.first,
+                                                label = data.second,
+                                                onClick = actionClickHandlers[id] ?: {},
+                                                isRearranging = isRearranging
+                                            )
+                                        }
+                                    } else {
+                                        Spacer(modifier = Modifier.weight(1f))
+                                    }
+                                }
+                            }
+
+                            if (isExpanded) {
+                                Spacer(modifier = Modifier.height(12.dp))
+                                // Second Row (Indices 3, 4, 5)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    for (i in 3 until 6) {
+                                        if (i < allActions.size) {
+                                            val (id, data) = allActions[i]
+                                            key(id) {
+                                                val targetSlot = when {
+                                                    draggedIndex == null || targetIndex == null -> i
+                                                    i == draggedIndex -> targetIndex!!
+                                                    draggedIndex!! < targetIndex!! && i > draggedIndex!! && i <= targetIndex!! -> i - 1
+                                                    draggedIndex!! > targetIndex!! && i < draggedIndex!! && i >= targetIndex!! -> i + 1
+                                                    else -> i
+                                                }
+
+                                                val itemOffset = if (targetSlot != i) {
+                                                    val currentPos = slotPositions[i] ?: Offset.Zero
+                                                    val targetPos = slotPositions[targetSlot] ?: Offset.Zero
+                                                    targetPos - currentPos
+                                                } else {
+                                                    Offset.Zero
+                                                }
+
+                                                val animatedOffset by animateOffsetAsState(
+                                                    targetValue = itemOffset,
+                                                    label = "shiftOffset"
+                                                )
+
+                                                QuickActionItem(
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .onGloballyPositioned { coords ->
+                                                            rootCoordinates?.let { root ->
+                                                                slotPositions[i] = root.localPositionOf(coords, Offset.Zero)
+                                                                slotSizes[i] = coords.size
+                                                            }
+                                                        }
+                                                        .graphicsLayer {
+                                                            translationX = animatedOffset.x
+                                                            translationY = animatedOffset.y
+                                                            alpha = if (draggedIndex == i) 0.3f else 1f
+                                                        }
+                                                        .zIndex(if (draggedIndex == i) 0f else 1f)
+                                                        .pointerInput(isRearranging, i) {
+                                                            if (isRearranging) {
+                                                                detectDragGesturesAfterLongPress(
+                                                                    onDragStart = { offset ->
+                                                                        draggedIndex = i
+                                                                        targetIndex = i
+                                                                        dragOffset = Offset.Zero
+                                                                        touchOffsetInItem = offset
+                                                                    },
+                                                                    onDrag = { change, amount ->
+                                                                        change.consume()
+                                                                        dragOffset += amount
+                                                                        
+                                                                        val currentDragPosition = (slotPositions[i] ?: Offset.Zero) + touchOffsetInItem + dragOffset
+                                                                        
+                                                                        var bestTarget = targetIndex
+                                                                        var minDistance = Float.MAX_VALUE
+                                                                        
+                                                                        slotPositions.forEach { (index, pos) ->
+                                                                            val size = slotSizes[index] ?: return@forEach
+                                                                            val center = pos + Offset(size.width / 2f, size.height / 2f)
+                                                                            val distance = (center - currentDragPosition).getDistance()
+                                                                            if (distance < minDistance) {
+                                                                                minDistance = distance
+                                                                                bestTarget = index
+                                                                            }
+                                                                        }
+                                                                        
+                                                                        if (bestTarget != targetIndex) {
+                                                                            targetIndex = bestTarget
+                                                                        }
+                                                                    },
+                                                                    onDragEnd = {
+                                                                        if (draggedIndex != null && targetIndex != null && draggedIndex != targetIndex) {
+                                                                            val item = allActions.removeAt(draggedIndex!!)
+                                                                            allActions.add(targetIndex!!, item)
+                                                                        }
+                                                                        draggedIndex = null
+                                                                        targetIndex = null
+                                                                        dragOffset = Offset.Zero
+                                                                    },
+                                                                    onDragCancel = {
+                                                                        draggedIndex = null
+                                                                        targetIndex = null
+                                                                        dragOffset = Offset.Zero
+                                                                    }
+                                                                )
+                                                            }
+                                                        },
+                                                    icon = data.first,
+                                                    label = data.second,
+                                                    onClick = actionClickHandlers[id] ?: {},
+                                                    isRearranging = isRearranging
+                                                )
+                                            }
+                                        } else {
+                                            Spacer(modifier = Modifier.weight(1f))
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -287,7 +570,39 @@ fun HomePage(
             }
         }
 
-        // NavigationDock is now managed by MainContainer
+        // --- DRAG OVERLAY ---
+        if (draggedIndex != null) {
+            val item = allActions[draggedIndex!!]
+            val (_, data) = item
+            val initialPos = slotPositions[draggedIndex!!] ?: Offset.Zero
+            val size = slotSizes[draggedIndex!!] ?: IntSize.Zero
+
+            val overlayDensity = LocalDensity.current
+
+            Box(
+                modifier = Modifier
+                    .offset {
+                        (initialPos + dragOffset).round()
+                    }
+                    .size(
+                        width = with(overlayDensity) { size.width.toDp() },
+                        height = with(overlayDensity) { size.height.toDp() }
+                    )
+                    .zIndex(1000f)
+                    .graphicsLayer {
+                        scaleX = 1.1f
+                        scaleY = 1.1f
+                        shadowElevation = 8.dp.toPx()
+                    }
+            ) {
+                QuickActionItem(
+                    icon = data.first,
+                    label = data.second,
+                    isRearranging = true,
+                    onClick = {}
+                )
+            }
+        }
     }
 }
 
@@ -296,13 +611,15 @@ fun QuickActionItem(
     icon: ImageVector,
     label: String,
     modifier: Modifier = Modifier,
+    isRearranging: Boolean = false,
     onClick: () -> Unit = {}
 ) {
     Surface(
-        onClick = onClick,
+        onClick = if (isRearranging) ({}) else onClick,
         modifier = modifier.height(80.dp),
         shape = MaterialTheme.shapes.large,
-        color = Color.White.copy(alpha = 0.1f)
+        color = Color.White.copy(alpha = if (isRearranging) 0.2f else 0.1f),
+        border = if (isRearranging) BorderStroke(1.dp, GlowBlue.copy(alpha = 0.5f)) else null
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -312,7 +629,7 @@ fun QuickActionItem(
             Icon(
                 imageVector = icon,
                 contentDescription = label,
-                tint = Color.White,
+                tint = if (isRearranging) GlowBlue else Color.White,
                 modifier = Modifier.size(28.dp)
             )
             Spacer(modifier = Modifier.height(4.dp))

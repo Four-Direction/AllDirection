@@ -27,6 +27,7 @@ import dev.chrisbanes.haze.hazeChild
 sealed class NavItem(val route: String, val icon: ImageVector, val label: String) {
     data object Home : NavItem("home", Icons.Default.Home, "Home")
     data object Explore : NavItem("explore", Icons.Default.Explore, "Explore")
+    data object Calendar : NavItem("calendar", Icons.Default.CalendarToday, "Calendar")
     data object Booking : NavItem("AI", Icons.Default.AutoAwesome, "AI")
     data object Saved : NavItem("saved", Icons.Default.Bookmark, "Saved")
     data object Profile : NavItem("profile", Icons.Default.Person, "Profile")
@@ -45,9 +46,11 @@ fun MainContainer(
     var isTipCalculatorVisible by remember { mutableStateOf(false) }
     var isEmergencyInfoVisible by remember { mutableStateOf(false) }
     
+    
     val items = listOf(
         NavItem.Home,
         NavItem.Explore,
+        NavItem.Calendar,
         NavItem.Booking,
         NavItem.Saved,
         NavItem.Profile
@@ -148,9 +151,11 @@ fun MainContainer(
                     hazeState = hazeState,
                     onCurrencyClick = { isCurrencyConverterVisible = true },
                     onTipClick = { isTipCalculatorVisible = true },
-                    onEmergencyClick = { isEmergencyInfoVisible = true }
+                    onEmergencyClick = { isEmergencyInfoVisible = true },
+                    onCalendarClick = { selectedItem = items.indexOf(NavItem.Calendar) }
                 )
                 NavItem.Explore -> ExplorePage()
+                NavItem.Calendar -> CalendarPage()
                 NavItem.Booking -> AiPage(hazeState = hazeState)
                 NavItem.Saved -> PlaceholderPage("Saved")
                 NavItem.Profile -> ProfilePage(
