@@ -33,8 +33,6 @@ The following table summarizes the main ideas generated during our ideation proc
 | **A – Integrated Travel Planner** | ✅ Chosen | Combines multiple travel-related functions into one platform and directly addresses the problem of switching between different apps. |
 | **B – AI Travel Assistant** | ✅ Chosen | Provides personalized travel recommendations and assistance, making trip planning more convenient and efficient. |
 | **C – Booking Fligh, Hotel and Food Function** | ❌ Dropped | [Explain why this idea was dropped, such as being too difficult to implement, having limited value, or overlapping with another feature.] |
-| **D – [Idea Name]** | ❌ Dropped | [Reason for dropping the idea.] |
-| **E – [Idea Name]** | ❌ Dropped | [Reason for dropping the idea.] |
 
 ---
 
