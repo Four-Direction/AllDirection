@@ -2,6 +2,7 @@ package com.fourDirection.allDirection.page.login
 
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -28,7 +29,6 @@ import kotlinx.coroutines.delay
 
 @Composable
 fun WelcomePage(
-    onSignUpWithGoogle: () -> Unit = {},
     onSignUp: () -> Unit = {},
     onLogin: () -> Unit = {}
 ) {
@@ -122,26 +122,23 @@ fun WelcomePage(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Sign up with Google Button
-                OutlinedButton(
-                    onClick = onSignUpWithGoogle,
+                // Login Button
+                Button(
+                    onClick = onLogin,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp),
                     shape = MaterialTheme.shapes.medium,
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = Color.White
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.White.copy(alpha = 0.2f)
                     ),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.LightGray)
+                    elevation = ButtonDefaults.buttonElevation(
+                        defaultElevation = 0.dp,
+                        pressedElevation = 4.dp
+                    ),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.5f))
                 ) {
-                    Icon(
-                        painter = painterResource(id = R.drawable.ic_google_logo),
-                        contentDescription = "Google Logo",
-                        modifier = Modifier.size(20.dp),
-                        tint = Color.Unspecified
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Sign up with Google", fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                    Text("Login", fontSize = 16.sp, color = Color.White)
                 }
 
                 // Sign up Button
@@ -160,21 +157,6 @@ fun WelcomePage(
                     )
                 ) {
                     Text("Sign up", fontSize = 16.sp, color = Color.White)
-                }
-
-                // Login Button
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Text(text = "Already have an account? ", color = Color.White.copy(alpha = 0.8f))
-                    TextButton(onClick = onLogin) {
-                        Text(
-                            text = "Login here",
-                            color = GlowBlue,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
                 }
             }
             
