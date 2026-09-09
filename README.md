@@ -20,6 +20,13 @@ Travelers often have to switch between multiple apps for different purposes, suc
 **Our Solution:**  
 Our app integrates these essential functions into a single travel platform. It combines **budget tracking, AI trip planning, navigation, an AI co-pilot, emergency information, group chat, and a community platform** to provide travelers with a more seamless, convenient, and comprehensive travel experience. Besides that, each feature is designed with unique improvements and advantages compared to existing solutions in the market.
 
+<details>
+<summary>View Project Overview</summary>
+
+<img src="Project_Overview.png" width="700">
+
+</details>
+
 ---
 
 # 2. Ideation & Process
