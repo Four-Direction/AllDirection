@@ -194,7 +194,7 @@ Our application is designed to differentiate itself from existing travel applica
 | **Community** | [Describe your feature] | [Unique advantage / innovation] |
 
 <details>
-<summary>View Project Overview</summary>
+<summary>View App Core Function</summary>
 
 <img src="App_CoreFunction.png">
 
