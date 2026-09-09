@@ -79,6 +79,7 @@ fun HomePage(
     onTipClick: () -> Unit = {},
     onEmergencyClick: () -> Unit = {},
     onCalendarClick: () -> Unit = {},
+    onSearchClick: () -> Unit = {},
     selectedRoute: String = "home",
     onRouteSelected: (String) -> Unit = {}
 ) {
@@ -190,14 +191,13 @@ fun HomePage(
 
                     Spacer(modifier = Modifier.height(32.dp))
                     
-                    var searchQuery by remember { mutableStateOf("") }
-
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(64.dp)
                             .clip(MaterialTheme.shapes.extraLarge)
-                            .hazeChild(state = hazeState),
+                            .hazeChild(state = hazeState)
+                            .clickable { onSearchClick() },
                         shape = MaterialTheme.shapes.extraLarge,
                         color = Color.White.copy(alpha = 0.15f),
                         border = BorderStroke(
@@ -205,36 +205,25 @@ fun HomePage(
                             Color.White.copy(alpha = 0.2f)
                         )
                     ) {
-                        TextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            modifier = Modifier.fillMaxSize(),
-                            placeholder = {
-                                Text(
-                                    text = "Discover your next destination",
-                                    color = Color.White.copy(alpha = 0.7f),
-                                    fontSize = 16.sp
-                                )
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.Search,
-                                    contentDescription = null,
-                                    tint = Color.White.copy(alpha = 0.8f),
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            },
-                            singleLine = true,
-                            colors = TextFieldDefaults.colors(
-                                focusedTextColor = Color.White,
-                                unfocusedTextColor = Color.White,
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent,
-                                cursorColor = GlowBlue
+                        Row(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.8f),
+                                modifier = Modifier.size(24.dp)
                             )
-                        )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = "Discover your next destination",
+                                color = Color.White.copy(alpha = 0.7f),
+                                fontSize = 16.sp
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(24.dp))

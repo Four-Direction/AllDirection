@@ -45,6 +45,7 @@ fun MainContainer(
     var isCurrencyConverterVisible by remember { mutableStateOf(false) }
     var isTipCalculatorVisible by remember { mutableStateOf(false) }
     var isEmergencyInfoVisible by remember { mutableStateOf(false) }
+    var shouldFocusExploreSearch by remember { mutableStateOf(false) }
     
     
     val items = listOf(
@@ -151,9 +152,17 @@ fun MainContainer(
                     onCurrencyClick = { isCurrencyConverterVisible = true },
                     onTipClick = { isTipCalculatorVisible = true },
                     onEmergencyClick = { isEmergencyInfoVisible = true },
-                    onCalendarClick = { selectedItem = items.indexOf(NavItem.Calendar) }
+                    onCalendarClick = { selectedItem = items.indexOf(NavItem.Calendar) },
+                    onSearchClick = { 
+                        selectedItem = items.indexOf(NavItem.Explore)
+                        shouldFocusExploreSearch = true
+                    }
                 )
-                NavItem.Explore -> ExplorePage(hazeState = hazeState)
+                NavItem.Explore -> ExplorePage(
+                    hazeState = hazeState,
+                    shouldFocusSearch = shouldFocusExploreSearch,
+                    onSearchFocused = { shouldFocusExploreSearch = false }
+                )
                 NavItem.Calendar -> CalendarPage()
                 NavItem.Booking -> AiPage(hazeState = hazeState)
                 NavItem.Saved -> PlaceholderPage("Saved")

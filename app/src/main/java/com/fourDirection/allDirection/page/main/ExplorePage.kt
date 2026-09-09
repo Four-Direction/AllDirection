@@ -17,6 +17,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -129,15 +131,25 @@ class ExploreViewModel : ViewModel() {
 fun ExplorePage(
     modifier: Modifier = Modifier,
     exploreViewModel: ExploreViewModel = viewModel(),
-    hazeState: HazeState
+    hazeState: HazeState,
+    shouldFocusSearch: Boolean = false,
+    onSearchFocused: () -> Unit = {}
 ) {
     val accessToken = "pk.eyJ1IjoiamFuZGRpIiwiYSI6ImNtdG9qYmx1ejB1cTEyd29majMxYzRvenMifQ.MHg_MphmkzDyLjIYLdLnmQ"
     var isMapReady by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
 
     LaunchedEffect(Unit) {
         MapboxOptions.accessToken = accessToken
         exploreViewModel.initSearchEngine(accessToken)
         isMapReady = true
+    }
+
+    LaunchedEffect(shouldFocusSearch) {
+        if (shouldFocusSearch) {
+            focusRequester.requestFocus()
+            onSearchFocused()
+        }
     }
 
     val searchQuery by exploreViewModel.searchQuery.collectAsState()
@@ -204,7 +216,9 @@ fun ExplorePage(
                     TextField(
                         value = searchQuery,
                         onValueChange = { exploreViewModel.onQueryChanged(it, mapViewportState.cameraState?.center) },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .focusRequester(focusRequester),
                         placeholder = {
                             Text(
                                 "Search places...",
