@@ -193,6 +193,13 @@ Our application is designed to differentiate itself from existing travel applica
 | **Group Chat** | [Describe your feature] | [Unique advantage / innovation] |
 | **Community** | [Describe your feature] | [Unique advantage / innovation] |
 
+<details>
+<summary>View Project Overview</summary>
+
+<img src="App_CoreFunction.png">
+
+</details>
+
 ### Key Innovation
 
 **Our main difference is the integration of multiple travel functions into one ecosystem.** Instead of requiring users to switch between different applications, our platform brings planning, navigation, budgeting, AI assistance, communication, and emergency information together in one place.
