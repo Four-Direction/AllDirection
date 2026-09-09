@@ -23,7 +23,7 @@ Our app integrates these essential functions into a single travel platform. It c
 <details>
 <summary>View Project Overview</summary>
 
-<img src="Project_Overview.png" width="700">
+<img src="Project_Overview.png">
 
 </details>
 
