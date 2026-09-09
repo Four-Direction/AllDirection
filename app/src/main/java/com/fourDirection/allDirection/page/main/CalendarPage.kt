@@ -10,6 +10,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -43,6 +44,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fourDirection.allDirection.data.DayPlan
 import com.fourDirection.allDirection.data.Trip
 import com.fourDirection.allDirection.ui.theme.GlowBlue
+import com.mapbox.search.result.SearchSuggestion
 import kotlinx.coroutines.flow.collectLatest
 import java.time.LocalDate
 import java.time.Month
@@ -55,6 +57,7 @@ fun CalendarPage(
     viewModel: CalendarViewModel = viewModel()
 ) {
     val context = LocalContext.current
+    val accessToken = "pk.eyJ1IjoiamFuZGRpIiwiYSI6ImNtdG9qYmx1ejB1cTEyd29majMxYzRvenMifQ.MHg_MphmkzDyLjIYLdLnmQ"
     var currentMonth by remember { mutableStateOf(YearMonth.now()) }
     val today = remember { LocalDate.now() }
     var showDatePicker by remember { mutableStateOf(false) }
@@ -69,6 +72,7 @@ fun CalendarPage(
 
     // Handle error events
     LaunchedEffect(Unit) {
+        viewModel.initSearchEngine(accessToken)
         viewModel.errorEvents.collectLatest { error ->
             Toast.makeText(context, error, Toast.LENGTH_LONG).show()
         }
@@ -329,6 +333,7 @@ fun CalendarPage(
                 if (selectedTrip != null) {
                     TripDetailView(
                         trip = selectedTrip!!,
+                        viewModel = viewModel,
                         onDismiss = { selectedTrip = null },
                         onUpdateTrip = { updatedTrip ->
                             viewModel.saveTrip(updatedTrip)
@@ -561,6 +566,7 @@ fun CalendarCell(
 @Composable
 fun TripDetailView(
     trip: Trip,
+    viewModel: CalendarViewModel,
     onDismiss: () -> Unit,
     onUpdateTrip: (Trip) -> Unit,
     onDeleteTrip: () -> Unit
@@ -628,6 +634,7 @@ fun TripDetailView(
                     val dayPlan = trip.dayPlans[date] ?: DayPlan(date = date)
                     DayPlanCard(
                         dayPlan = dayPlan,
+                        viewModel = viewModel,
                         onUpdate = { updatedPlan ->
                             val newPlans = trip.dayPlans.toMutableMap()
                             newPlans[date] = updatedPlan
@@ -643,9 +650,16 @@ fun TripDetailView(
 @Composable
 fun DayPlanCard(
     dayPlan: DayPlan,
+    viewModel: CalendarViewModel,
     onUpdate: (DayPlan) -> Unit
 ) {
     var isEditing by remember { mutableStateOf(false) }
+    val suggestions by viewModel.suggestions.collectAsState()
+    var showSuggestions by remember { mutableStateOf(false) }
+
+    // Local state for text fields to ensure instant typing response
+    var localLocation by remember(dayPlan.location, isEditing) { mutableStateOf(dayPlan.location) }
+    var localDescription by remember(dayPlan.description, isEditing) { mutableStateOf(dayPlan.description) }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -663,7 +677,14 @@ fun DayPlanCard(
                     color = GlowBlue,
                     fontWeight = FontWeight.Bold
                 )
-                IconButton(onClick = { isEditing = !isEditing }, modifier = Modifier.size(24.dp)) {
+                IconButton(onClick = { 
+                    if (isEditing) {
+                        // Save changes when clicking the checkmark
+                        onUpdate(dayPlan.copy(location = localLocation, description = localDescription))
+                    }
+                    isEditing = !isEditing 
+                    showSuggestions = false
+                }, modifier = Modifier.size(24.dp)) {
                     Icon(
                         imageVector = if (isEditing) Icons.Default.Check else Icons.Default.Edit,
                         contentDescription = "Edit",
@@ -676,24 +697,59 @@ fun DayPlanCard(
             if (isEditing) {
                 Spacer(modifier = Modifier.height(12.dp))
                 
-                OutlinedTextField(
-                    value = dayPlan.location,
-                    onValueChange = { onUpdate(dayPlan.copy(location = it)) },
-                    label = { Text("Location") },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        focusedBorderColor = GlowBlue
-                    ),
-                    leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(18.dp)) }
-                )
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = localLocation,
+                        onValueChange = { 
+                            localLocation = it
+                            viewModel.onSearchQueryChanged(it)
+                            showSuggestions = it.isNotBlank()
+                        },
+                        label = { Text("Location") },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            focusedBorderColor = GlowBlue
+                        ),
+                        leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(18.dp)) }
+                    )
+
+                    if (showSuggestions && suggestions.isNotEmpty()) {
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 200.dp)
+                                .padding(top = 4.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFF222222),
+                            border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.1f)),
+                            tonalElevation = 4.dp
+                        ) {
+                            LazyColumn {
+                                items(suggestions) { suggestion ->
+                                    ListItem(
+                                        headlineContent = { Text(suggestion.name, color = Color.White, fontSize = 14.sp) },
+                                        supportingContent = { Text(suggestion.descriptionText ?: "", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp) },
+                                        modifier = Modifier.clickable {
+                                            viewModel.selectSuggestion(suggestion) { selectedName ->
+                                                localLocation = selectedName
+                                                showSuggestions = false
+                                            }
+                                        },
+                                        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
                 
                 Spacer(modifier = Modifier.height(8.dp))
                 
                 OutlinedTextField(
-                    value = dayPlan.description,
-                    onValueChange = { onUpdate(dayPlan.copy(description = it)) },
+                    value = localDescription,
+                    onValueChange = { localDescription = it },
                     label = { Text("Daily Notes") },
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(

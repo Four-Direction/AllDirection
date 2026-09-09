@@ -1,5 +1,6 @@
 package com.fourDirection.allDirection.page.main
 
+import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -88,16 +89,34 @@ fun HomePage(
     var trendingCities by remember { mutableStateOf<List<TrendingCity>>(emptyList()) }
     val scrollState = rememberScrollState()
 
-    // Quick Action Definitions
+    // Quick Action Definitions & Persistence
+    val actionDefinitions = mapOf(
+        "currency" to (Icons.Default.CurrencyExchange to "Currency"),
+        "tip" to (Icons.Default.Calculate to "Tip Calc"),
+        "emergency" to (Icons.Default.HealthAndSafety to "Emergency"),
+        "calendar" to (Icons.Default.CalendarToday to "Calendar"),
+        "translate" to (Icons.Default.Translate to "Translate"),
+        "map" to (Icons.Default.Map to "Offline Map")
+    )
+
+    val sharedPrefs = remember { context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE) }
+    
     val allActions = remember {
-        mutableStateListOf(
-            "currency" to (Icons.Default.CurrencyExchange to "Currency"),
-            "tip" to (Icons.Default.Calculate to "Tip Calc"),
-            "emergency" to (Icons.Default.HealthAndSafety to "Emergency"),
-            "calendar" to (Icons.Default.CalendarToday to "Calendar"),
-            "translate" to (Icons.Default.Translate to "Translate"),
-            "map" to (Icons.Default.Map to "Offline Map")
-        )
+        val savedOrder = sharedPrefs.getString("quick_actions_order", null)
+        val initialOrder = if (savedOrder != null) {
+            val savedIds = savedOrder.split(",")
+            val validIds = savedIds.filter { actionDefinitions.containsKey(it) }
+            val missingIds = actionDefinitions.keys.filterNot { validIds.contains(it) }
+            validIds + missingIds
+        } else {
+            listOf("currency", "tip", "emergency", "calendar", "translate", "map")
+        }
+        
+        mutableStateListOf<Pair<String, Pair<ImageVector, String>>>().apply {
+            initialOrder.forEach { id ->
+                actionDefinitions[id]?.let { add(id to it) }
+            }
+        }
     }
 
     // Drag and Drop state for Quick Actions
@@ -381,6 +400,10 @@ fun HomePage(
                                                                     if (draggedIndex != null && targetIndex != null && draggedIndex != targetIndex) {
                                                                         val item = allActions.removeAt(draggedIndex!!)
                                                                         allActions.add(targetIndex!!, item)
+                                                                        
+                                                                        // Save new order
+                                                                        val newOrder = allActions.joinToString(",") { it.first }
+                                                                        sharedPrefs.edit().putString("quick_actions_order", newOrder).apply()
                                                                     }
                                                                     draggedIndex = null
                                                                     targetIndex = null
@@ -489,6 +512,10 @@ fun HomePage(
                                                                         if (draggedIndex != null && targetIndex != null && draggedIndex != targetIndex) {
                                                                             val item = allActions.removeAt(draggedIndex!!)
                                                                             allActions.add(targetIndex!!, item)
+                                                                            
+                                                                            // Save new order
+                                                                            val newOrder = allActions.joinToString(",") { it.first }
+                                                                            sharedPrefs.edit().putString("quick_actions_order", newOrder).apply()
                                                                         }
                                                                         draggedIndex = null
                                                                         targetIndex = null

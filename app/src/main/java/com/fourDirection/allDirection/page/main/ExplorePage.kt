@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -19,7 +20,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -138,6 +142,8 @@ fun ExplorePage(
     val accessToken = "pk.eyJ1IjoiamFuZGRpIiwiYSI6ImNtdG9qYmx1ejB1cTEyd29majMxYzRvenMifQ.MHg_MphmkzDyLjIYLdLnmQ"
     var isMapReady by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+    var isSearchFocused by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         MapboxOptions.accessToken = accessToken
@@ -167,6 +173,11 @@ fun ExplorePage(
             .fillMaxSize()
             .background(Color.Black)
             .hazeSource(state = hazeState)
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = {
+                    focusManager.clearFocus()
+                })
+            }
     ) {
         // Mapbox Map
         if (isMapReady) {
@@ -218,7 +229,8 @@ fun ExplorePage(
                         onValueChange = { exploreViewModel.onQueryChanged(it, mapViewportState.cameraState?.center) },
                         modifier = Modifier
                             .weight(1f)
-                            .focusRequester(focusRequester),
+                            .focusRequester(focusRequester)
+                            .onFocusChanged { isSearchFocused = it.isFocused },
                         placeholder = {
                             Text(
                                 "Search places...",
@@ -252,7 +264,7 @@ fun ExplorePage(
                 }
             }
 
-            if (suggestions.isNotEmpty()) {
+            if (isSearchFocused && suggestions.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Surface(
                     modifier = Modifier
