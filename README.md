@@ -1,13 +1,4 @@
 # Direction by Four Direction
-<details>
-<summary>View App Logo</summary>
-
-<p align="center">
-  <img src="app_logo.jpeg" width="250" height="250" style="border-radius: 50%; object-fit: cover;">
-</p>
-
-</details>
-
 **Team**: Tan Yi, Lee Jun Le, Kho Kian Bin, Shawn  
 **Problem** **Statement**: Lifestyle Track: Planning an Escape (Travel Planner)  
 **Video** **Presentation**:   
