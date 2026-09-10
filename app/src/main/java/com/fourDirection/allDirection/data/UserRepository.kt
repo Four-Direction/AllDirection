@@ -1,11 +1,15 @@
 package com.fourDirection.allDirection.data
 
+import android.content.Context
+import android.net.Uri
+import android.util.Base64
 import android.util.Log
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FieldValue
 import kotlinx.coroutines.tasks.await
+import java.io.InputStream
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.UUID
@@ -13,14 +17,14 @@ import java.util.UUID
 class UserRepository {
     private val db = FirebaseFirestore.getInstance()
 
-    suspend fun saveUserToFirestore(user: FirebaseUser, customName: String? = null) {
+    suspend fun saveUserToFirestore(user: FirebaseUser, customName: String? = null, customPhotoUrl: String? = null) {
         try {
             val userData = hashMapOf(
                 "uid" to user.uid,
                 "name" to (customName ?: user.displayName ?: ""),
                 "name_lowercase" to (customName ?: user.displayName ?: "").lowercase(),
                 "email" to (user.email ?: ""),
-                "photoUrl" to (user.photoUrl?.toString() ?: ""),
+                "photoUrl" to (customPhotoUrl ?: user.photoUrl?.toString() ?: ""),
                 "createdAt" to Timestamp.now(),
                 "totalDistance" to 0.0,
                 "lastLogin" to Timestamp.now()
@@ -30,6 +34,34 @@ class UserRepository {
         } catch (e: Exception) {
             Log.e("UserRepository", "Error saving user to Firestore", e)
             throw e
+        }
+    }
+
+    suspend fun updateUserInfo(uid: String, name: String, photoUrl: String) {
+        try {
+            val updates = hashMapOf<String, Any>(
+                "name" to name,
+                "name_lowercase" to name.lowercase(),
+                "photoUrl" to photoUrl
+            )
+            db.collection("users").document(uid).update(updates).await()
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error updating user info", e)
+            throw e
+        }
+    }
+
+    fun encodeImageToBase64(context: Context, uri: Uri): String {
+        return try {
+            val inputStream = context.contentResolver.openInputStream(uri)
+            val bytes = inputStream?.readBytes()
+            inputStream?.close()
+            if (bytes != null) {
+                "data:image/jpeg;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
+            } else ""
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error encoding image", e)
+            ""
         }
     }
 

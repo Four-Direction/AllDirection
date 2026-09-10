@@ -90,7 +90,8 @@ class SocialViewModel : ViewModel() {
             .addSnapshotListener { snapshot, _ ->
                 _myGroups.value = snapshot?.documents?.mapNotNull { doc ->
                     val data = doc.data?.toMutableMap() ?: return@mapNotNull null
-                    data["groupName"] = data["name"]
+                    data["id"] = doc.id // Use Firestore document ID as the primary ID
+                    data["groupName"] = data["name"] as? String ?: "Unnamed Group"
                     data
                 } ?: emptyList()
             }

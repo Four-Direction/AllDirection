@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.fourDirection.allDirection.page.main.GroupChatPage
 import com.fourDirection.allDirection.page.tinyApps.CurrencyConverterPage
 import com.fourDirection.allDirection.page.tinyApps.EmergencyInfoPage
 import com.fourDirection.allDirection.page.tinyApps.TipCalculatorPage
@@ -50,6 +51,7 @@ fun MainContainer(
     var isEmergencyInfoVisible by remember { mutableStateOf(false) }
     var isConnectionsVisible by remember { mutableStateOf(false) }
     var isAccountVisible by remember { mutableStateOf(false) }
+    var selectedGroup by remember { mutableStateOf<Map<String, Any>?>(null) }
     var shouldFocusExploreSearch by remember { mutableStateOf(false) }
     var plannerSubTab by remember { mutableStateOf(0) } // 0 for Map, 1 for Calendar
     var pendingLocationSearch by remember { mutableStateOf<String?>(null) }
@@ -66,7 +68,7 @@ fun MainContainer(
     val hazeState = remember { HazeState() }
 
     // Handle system back button
-    BackHandler(enabled = selectedItem != 0 || isCurrencyConverterVisible || isTipCalculatorVisible || isEmergencyInfoVisible || isConnectionsVisible || isAccountVisible) {
+    BackHandler(enabled = selectedItem != 0 || isCurrencyConverterVisible || isTipCalculatorVisible || isEmergencyInfoVisible || isConnectionsVisible || isAccountVisible || selectedGroup != null) {
         if (isCurrencyConverterVisible) {
             isCurrencyConverterVisible = false
         } else if (isTipCalculatorVisible) {
@@ -77,6 +79,8 @@ fun MainContainer(
             isConnectionsVisible = false
         } else if (isAccountVisible) {
             isAccountVisible = false
+        } else if (selectedGroup != null) {
+            selectedGroup = null
         } else {
             selectedItem = 0
         }
@@ -86,7 +90,7 @@ fun MainContainer(
         containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
-            if (!isCurrencyConverterVisible && !isTipCalculatorVisible && !isEmergencyInfoVisible && !isConnectionsVisible && !isAccountVisible) {
+            if (!isCurrencyConverterVisible && !isTipCalculatorVisible && !isEmergencyInfoVisible && !isConnectionsVisible && !isAccountVisible && selectedGroup == null) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -221,7 +225,7 @@ fun MainContainer(
                     }
                 }
                 NavItem.Booking -> AiPage(hazeState = hazeState)
-                NavItem.Social -> SocialPage()
+                NavItem.Social -> SocialPage(onGroupClick = { group -> selectedGroup = group })
                 NavItem.Profile -> ProfilePage(
                     userName = userName,
                     userEmail = userEmail,
@@ -254,6 +258,14 @@ fun MainContainer(
                     photoUrl = userPhotoUrl,
                     onDismiss = { isAccountVisible = false },
                     onUpdateSuccess = onUserUpdate
+                )
+            }
+
+            if (selectedGroup != null) {
+                GroupChatPage(
+                    groupId = selectedGroup!!["id"] as String,
+                    groupName = selectedGroup!!["groupName"] as String,
+                    onDismiss = { selectedGroup = null }
                 )
             }
 
