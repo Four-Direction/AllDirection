@@ -14,6 +14,6 @@ data class Trip(
 data class DayPlan(
     val date: LocalDate,
     val description: String = "",
-    val location: String = "",
+    val locations: List<String> = emptyList(),
     val events: List<String> = emptyList()
 )

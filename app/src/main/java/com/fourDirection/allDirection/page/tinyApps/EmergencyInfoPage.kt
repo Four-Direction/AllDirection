@@ -183,7 +183,7 @@ fun EmergencyInfoPage(onDismiss: () -> Unit) {
             Text("Safe Travel Tips", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(12.dp))
             
-            TipItem("Share your itinerary with a friend or family member.")
+            TipItem("Share your itinerary with a connection or family member.")
             TipItem("Keep digital and physical copies of your passport.")
             TipItem("Learn basic emergency phrases in the local language.")
             TipItem("Keep your embassy contact details saved.")

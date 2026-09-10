@@ -19,6 +19,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -37,6 +39,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -54,7 +57,8 @@ import java.util.Locale
 
 @Composable
 fun CalendarPage(
-    viewModel: CalendarViewModel = viewModel()
+    viewModel: CalendarViewModel = viewModel(),
+    onLocationClick: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val accessToken = "pk.eyJ1IjoiamFuZGRpIiwiYSI6ImNtdG9qYmx1ejB1cTEyd29majMxYzRvenMifQ.MHg_MphmkzDyLjIYLdLnmQ"
@@ -69,6 +73,7 @@ fun CalendarPage(
     var selectedTrip by remember { mutableStateOf<Trip?>(null) }
     var isCreationMode by remember { mutableStateOf(false) }
     val isLoading by viewModel.isLoading.collectAsState()
+    var editingDayPlan by remember { mutableStateOf<DayPlan?>(null) }
 
     // Handle error events
     LaunchedEffect(Unit) {
@@ -286,37 +291,56 @@ fun CalendarPage(
                         
                         Spacer(modifier = Modifier.height(16.dp))
                         
-                        Button(
-                            onClick = {
-                                if (tripName.isNotBlank() && rangeStart != null && rangeEnd != null) {
-                                    val newTrip = Trip(
-                                        name = tripName,
-                                        startDate = rangeStart!!,
-                                        endDate = rangeEnd!!
-                                    )
-                                    viewModel.saveTrip(newTrip)
-                                    selectedTrip = newTrip
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = { 
                                     isCreationMode = false
                                     rangeStart = null
                                     rangeEnd = null
+                                },
+                                modifier = Modifier.weight(1f).height(48.dp),
+                                shape = MaterialTheme.shapes.medium,
+                                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+                            ) {
+                                Text("Cancel")
+                            }
+
+                            Button(
+                                onClick = {
+                                    if (tripName.isNotBlank() && rangeStart != null && rangeEnd != null) {
+                                        val newTrip = Trip(
+                                            name = tripName,
+                                            startDate = rangeStart!!,
+                                            endDate = rangeEnd!!
+                                        )
+                                        viewModel.saveTrip(newTrip)
+                                        selectedTrip = newTrip
+                                        isCreationMode = false
+                                        rangeStart = null
+                                        rangeEnd = null
+                                    }
+                                },
+                                modifier = Modifier.weight(1.5f).height(48.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = GlowBlue,
+                                    disabledContainerColor = Color.White.copy(alpha = 0.12f),
+                                    disabledContentColor = Color.White.copy(alpha = 0.38f)
+                                ),
+                                enabled = tripName.isNotBlank() && rangeStart != null && rangeEnd != null && !isLoading
+                            ) {
+                                if (isLoading) {
+                                    CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.Black)
+                                } else {
+                                    Text(
+                                        text = "Create Trip",
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (tripName.isNotBlank() && rangeStart != null && rangeEnd != null) Color.Black else Color.Unspecified
+                                    )
                                 }
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = GlowBlue,
-                                disabledContainerColor = Color.White.copy(alpha = 0.12f),
-                                disabledContentColor = Color.White.copy(alpha = 0.38f)
-                            ),
-                            enabled = tripName.isNotBlank() && rangeStart != null && rangeEnd != null && !isLoading
-                        ) {
-                            if (isLoading) {
-                                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.Black)
-                            } else {
-                                Text(
-                                    text = "Create Trip",
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (tripName.isNotBlank() && rangeStart != null && rangeEnd != null) Color.Black else Color.Unspecified
-                                )
                             }
                         }
                     }
@@ -333,17 +357,32 @@ fun CalendarPage(
                 if (selectedTrip != null) {
                     TripDetailView(
                         trip = selectedTrip!!,
-                        viewModel = viewModel,
                         onDismiss = { selectedTrip = null },
-                        onUpdateTrip = { updatedTrip ->
-                            viewModel.saveTrip(updatedTrip)
-                        },
+                        onEditDay = { editingDayPlan = it },
+                        onLocationClick = onLocationClick,
                         onDeleteTrip = {
                             viewModel.deleteTrip(selectedTrip!!.id)
                             selectedTrip = null
                         }
                     )
                 }
+            }
+
+            // --- DAY PLAN EDIT DIALOG ---
+            if (editingDayPlan != null && selectedTrip != null) {
+                DayPlanEditDialog(
+                    dayPlan = editingDayPlan!!,
+                    viewModel = viewModel,
+                    onDismiss = { editingDayPlan = null },
+                    onLocationClick = onLocationClick,
+                    onSave = { updatedPlan ->
+                        val newPlans = selectedTrip!!.dayPlans.toMutableMap()
+                        newPlans[updatedPlan.date] = updatedPlan
+                        val updatedTrip = selectedTrip!!.copy(dayPlans = newPlans)
+                        viewModel.saveTrip(updatedTrip)
+                        editingDayPlan = null
+                    }
+                )
             }
         }
     }
@@ -566,15 +605,15 @@ fun CalendarCell(
 @Composable
 fun TripDetailView(
     trip: Trip,
-    viewModel: CalendarViewModel,
     onDismiss: () -> Unit,
-    onUpdateTrip: (Trip) -> Unit,
+    onEditDay: (DayPlan) -> Unit,
+    onLocationClick: (String) -> Unit = {},
     onDeleteTrip: () -> Unit
 ) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .fillMaxHeight(0.5f), // Lowered from 0.6f to show more calendar
+            .fillMaxHeight(0.45f), // Slightly lower to show more calendar
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         color = Color(0xFF121212),
         tonalElevation = 8.dp,
@@ -624,22 +663,17 @@ fun TripDetailView(
             }
 
             LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
+                columns = GridCells.Fixed(3),
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 120.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 120.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(days) { date ->
                     val dayPlan = trip.dayPlans[date] ?: DayPlan(date = date)
                     DayPlanCard(
                         dayPlan = dayPlan,
-                        viewModel = viewModel,
-                        onUpdate = { updatedPlan ->
-                            val newPlans = trip.dayPlans.toMutableMap()
-                            newPlans[date] = updatedPlan
-                            onUpdateTrip(trip.copy(dayPlans = newPlans))
-                        }
+                        onEditClick = { onEditDay(dayPlan) }
                     )
                 }
             }
@@ -650,131 +684,268 @@ fun TripDetailView(
 @Composable
 fun DayPlanCard(
     dayPlan: DayPlan,
-    viewModel: CalendarViewModel,
-    onUpdate: (DayPlan) -> Unit
+    onEditClick: () -> Unit
 ) {
-    var isEditing by remember { mutableStateOf(false) }
-    val suggestions by viewModel.suggestions.collectAsState()
-    var showSuggestions by remember { mutableStateOf(false) }
-
-    // Local state for text fields to ensure instant typing response
-    var localLocation by remember(dayPlan.location, isEditing) { mutableStateOf(dayPlan.location) }
-    var localDescription by remember(dayPlan.description, isEditing) { mutableStateOf(dayPlan.description) }
-
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(110.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.05f)),
         border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.1f))
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable { onEditClick() }
+        ) {
+            Column(modifier = Modifier.padding(8.dp)) {
                 Text(
-                    text = "${dayPlan.date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())}, ${dayPlan.date.month.getDisplayName(TextStyle.SHORT, Locale.getDefault())} ${dayPlan.date.dayOfMonth}",
+                    text = "${dayPlan.date.dayOfMonth} ${dayPlan.date.month.getDisplayName(TextStyle.SHORT, Locale.getDefault())}",
                     color = GlowBlue,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
                 )
-                IconButton(onClick = { 
-                    if (isEditing) {
-                        // Save changes when clicking the checkmark
-                        onUpdate(dayPlan.copy(location = localLocation, description = localDescription))
-                    }
-                    isEditing = !isEditing 
-                    showSuggestions = false
-                }, modifier = Modifier.size(24.dp)) {
-                    Icon(
-                        imageVector = if (isEditing) Icons.Default.Check else Icons.Default.Edit,
-                        contentDescription = "Edit",
-                        tint = if (isEditing) GlowBlue else Color.White.copy(alpha = 0.5f),
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
-
-            if (isEditing) {
-                Spacer(modifier = Modifier.height(12.dp))
                 
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedTextField(
-                        value = localLocation,
-                        onValueChange = { 
-                            localLocation = it
-                            viewModel.onSearchQueryChanged(it)
-                            showSuggestions = it.isNotBlank()
-                        },
-                        label = { Text("Location") },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            focusedBorderColor = GlowBlue
-                        ),
-                        leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(18.dp)) }
-                    )
-
-                    if (showSuggestions && suggestions.isNotEmpty()) {
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(max = 200.dp)
-                                .padding(top = 4.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            color = Color(0xFF222222),
-                            border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.1f)),
-                            tonalElevation = 4.dp
-                        ) {
-                            LazyColumn {
-                                items(suggestions) { suggestion ->
-                                    ListItem(
-                                        headlineContent = { Text(suggestion.name, color = Color.White, fontSize = 14.sp) },
-                                        supportingContent = { Text(suggestion.descriptionText ?: "", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp) },
-                                        modifier = Modifier.clickable {
-                                            viewModel.selectSuggestion(suggestion) { selectedName ->
-                                                localLocation = selectedName
-                                                showSuggestions = false
-                                            }
-                                        },
-                                        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-                                    )
-                                }
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                if (dayPlan.locations.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        dayPlan.locations.take(2).forEach { loc ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.LocationOn, contentDescription = null, tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(10.dp))
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Text(
+                                    text = loc, 
+                                    color = Color.White, 
+                                    fontSize = 10.sp, 
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
+                        }
+                        if (dayPlan.locations.size > 2) {
+                            Text("+${dayPlan.locations.size - 2} more", color = GlowBlue, fontSize = 8.sp)
                         }
                     }
                 }
                 
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                OutlinedTextField(
-                    value = localDescription,
-                    onValueChange = { localDescription = it },
-                    label = { Text("Daily Notes") },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        focusedBorderColor = GlowBlue
+                if (dayPlan.description.isNotBlank()) {
+                    Text(
+                        text = dayPlan.description, 
+                        color = Color.White.copy(alpha = 0.7f), 
+                        fontSize = 9.sp, 
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
-                )
-            } else {
-                if (dayPlan.location.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.LocationOn, contentDescription = null, tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(text = dayPlan.location, color = Color.White, fontSize = 14.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DayPlanEditDialog(
+    dayPlan: DayPlan,
+    viewModel: CalendarViewModel,
+    onDismiss: () -> Unit,
+    onLocationClick: (String) -> Unit = {},
+    onSave: (DayPlan) -> Unit
+) {
+    var isEditing by remember { mutableStateOf(false) }
+    var locations by remember { mutableStateOf(dayPlan.locations) }
+    var newLocationQuery by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf(dayPlan.description) }
+    val suggestions by viewModel.suggestions.collectAsState()
+    var showSuggestions by remember { mutableStateOf(false) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.85f),
+            shape = RoundedCornerShape(24.dp),
+            color = Color(0xFF1A1A1A),
+            tonalElevation = 8.dp,
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
+        ) {
+            Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${dayPlan.date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())}, ${dayPlan.date.dayOfMonth} ${dayPlan.date.month.getDisplayName(TextStyle.FULL, Locale.getDefault())}",
+                        color = GlowBlue,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
                     }
                 }
-                
-                if (dayPlan.description.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(text = dayPlan.description, color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp)
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    if (!isEditing) {
+                        // VIEW MODE
+                        if (locations.isEmpty() && description.isBlank()) {
+                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                Text("No plans for today.", color = Color.White.copy(alpha = 0.3f))
+                            }
+                        } else {
+                            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                                if (locations.isNotEmpty()) {
+                                    Text("Locations", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    locations.forEach { loc ->
+                                        Surface(
+                                            onClick = { onLocationClick(loc) },
+                                            color = Color.White.copy(alpha = 0.05f),
+                                            shape = RoundedCornerShape(12.dp),
+                                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                            border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.1f))
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(16.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(Icons.Default.LocationOn, contentDescription = null, tint = GlowBlue, modifier = Modifier.size(20.dp))
+                                                Spacer(modifier = Modifier.width(12.dp))
+                                                Text(text = loc, color = Color.White, fontSize = 15.sp)
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (description.isNotBlank()) {
+                                    Spacer(modifier = Modifier.height(24.dp))
+                                    Text("Daily Notes", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = description,
+                                        color = Color.White,
+                                        fontSize = 15.sp,
+                                        lineHeight = 22.sp
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        // EDIT MODE
+                        // Current Locations List
+                        if (locations.isNotEmpty()) {
+                            Text("Locations", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            locations.forEach { loc ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.LocationOn, contentDescription = null, tint = GlowBlue, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(text = loc, color = Color.White, fontSize = 14.sp)
+                                    }
+                                    IconButton(onClick = { locations = locations.filter { it != loc } }, modifier = Modifier.size(24.dp)) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Remove", tint = Color.Red.copy(alpha = 0.6f), modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
+
+                        // Add New Location
+                        Box {
+                            OutlinedTextField(
+                                value = newLocationQuery,
+                                onValueChange = { 
+                                    newLocationQuery = it
+                                    viewModel.onSearchQueryChanged(it)
+                                    showSuggestions = it.isNotBlank()
+                                },
+                                label = { Text("Add Location") },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White,
+                                    focusedBorderColor = GlowBlue
+                                ),
+                                leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) }
+                            )
+
+                            if (showSuggestions && suggestions.isNotEmpty()) {
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(max = 200.dp)
+                                        .padding(top = 64.dp), // Adjust to appear below textfield
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color(0xFF222222),
+                                    border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.1f)),
+                                    tonalElevation = 8.dp
+                                ) {
+                                    LazyColumn {
+                                        items(suggestions) { suggestion ->
+                                            ListItem(
+                                                headlineContent = { Text(suggestion.name, color = Color.White, fontSize = 14.sp) },
+                                                supportingContent = { Text(suggestion.descriptionText ?: "", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp) },
+                                                modifier = Modifier.clickable {
+                                                    viewModel.selectSuggestion(suggestion) { selectedName ->
+                                                        if (!locations.contains(selectedName)) {
+                                                            locations = locations + selectedName
+                                                        }
+                                                        newLocationQuery = ""
+                                                        showSuggestions = false
+                                                    }
+                                                },
+                                                colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        OutlinedTextField(
+                            value = description,
+                            onValueChange = { description = it },
+                            label = { Text("Daily Notes") },
+                            modifier = Modifier.fillMaxWidth().weight(1f),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White,
+                                focusedBorderColor = GlowBlue
+                            )
+                        )
+                    }
                 }
-                
-                if (dayPlan.location.isBlank() && dayPlan.description.isBlank()) {
-                    Text(text = "No plans yet. Tap edit to add.", color = Color.White.copy(alpha = 0.3f), fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Button(
+                    onClick = { 
+                        if (isEditing) {
+                            onSave(dayPlan.copy(locations = locations, description = description)) 
+                        } else {
+                            isEditing = true
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = GlowBlue),
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Text(
+                        text = if (isEditing) "Save Details" else "Change Details",
+                        color = Color.Black,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }

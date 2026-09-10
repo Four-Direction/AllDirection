@@ -26,6 +26,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.common.api.ApiException
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
+import com.google.android.libraries.places.api.Places
 import kotlinx.coroutines.launch
 
 enum class Screen {
@@ -52,6 +53,14 @@ class MainActivity : ComponentActivity() {
     @androidx.compose.material3.ExperimentalMaterial3Api
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Initialize Google Places SDK
+        val apiKey = "AIzaSyDfx1WnO_cEL7FTITygLYBAO6xFk-iBIoY"
+        if (apiKey.isNotEmpty() && !apiKey.contains("YOUR_API_KEY")) {
+            if (!Places.isInitialized()) {
+                Places.initialize(applicationContext, apiKey)
+            }
+        }
         
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
@@ -75,6 +84,13 @@ class MainActivity : ComponentActivity() {
                             if (userData != null) {
                                 userName = userData["name"] as? String ?: "User"
                                 totalDistance = (userData["totalDistance"] as? Number)?.toDouble() ?: 0.0
+                                
+                                // Ensure name_lowercase exists for search
+                                if (userData["name_lowercase"] == null && userName != "User") {
+                                    lifecycleScope.launch {
+                                        userRepository.saveUserToFirestore(authManager.currentUser!!, userName)
+                                    }
+                                }
                                 
                                 val createdAt = userData["createdAt"] as? com.google.firebase.Timestamp
                                 if (createdAt != null) {

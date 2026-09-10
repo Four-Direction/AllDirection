@@ -6,6 +6,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AccountBox
+import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -28,6 +29,7 @@ fun ProfilePage(
     userName: String = "User",
     userEmail: String = "",
     onAccountClick: () -> Unit = {},
+    onConnectionsClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
     onSignOut: () -> Unit = {}
 ) {
@@ -85,6 +87,14 @@ fun ProfilePage(
                 icon = Icons.Default.AccountBox,
                 title = "Account",
                 onClick = onAccountClick
+            )
+            
+            Spacer(modifier = Modifier.height(12.dp))
+
+            ProfileOption(
+                icon = Icons.Default.Group,
+                title = "Connections",
+                onClick = onConnectionsClick
             )
             
             Spacer(modifier = Modifier.height(12.dp))

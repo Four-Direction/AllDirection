@@ -79,6 +79,7 @@ fun HomePage(
     onCurrencyClick: () -> Unit = {},
     onTipClick: () -> Unit = {},
     onEmergencyClick: () -> Unit = {},
+    onConnectionsClick: () -> Unit = {},
     onCalendarClick: () -> Unit = {},
     onSearchClick: () -> Unit = {},
     selectedRoute: String = "home",
@@ -94,6 +95,7 @@ fun HomePage(
         "currency" to (Icons.Default.CurrencyExchange to "Currency"),
         "tip" to (Icons.Default.Calculate to "Tip Calc"),
         "emergency" to (Icons.Default.HealthAndSafety to "Emergency"),
+        "connections" to (Icons.Default.Group to "Connections"),
         "calendar" to (Icons.Default.CalendarToday to "Calendar"),
         "translate" to (Icons.Default.Translate to "Translate"),
         "map" to (Icons.Default.Map to "Offline Map")
@@ -107,13 +109,19 @@ fun HomePage(
             val savedIds = savedOrder.split(",")
             val validIds = savedIds.filter { actionDefinitions.containsKey(it) }
             val missingIds = actionDefinitions.keys.filterNot { validIds.contains(it) }
-            validIds + missingIds
+            
+            // If connections is a missing ID (new feature), put it at the start
+            if (missingIds.contains("connections")) {
+                listOf("connections") + validIds + (missingIds - "connections")
+            } else {
+                validIds + missingIds
+            }
         } else {
-            listOf("currency", "tip", "emergency", "calendar", "translate", "map")
+            listOf("connections", "calendar", "currency", "tip", "emergency", "translate", "map")
         }
         
         mutableStateListOf<Pair<String, Pair<ImageVector, String>>>().apply {
-            initialOrder.forEach { id ->
+            initialOrder.distinct().forEach { id ->
                 actionDefinitions[id]?.let { add(id to it) }
             }
         }
@@ -132,6 +140,7 @@ fun HomePage(
         "currency" to onCurrencyClick,
         "tip" to onTipClick,
         "emergency" to onEmergencyClick,
+        "connections" to onConnectionsClick,
         "calendar" to onCalendarClick,
         "translate" to {},
         "map" to {}
@@ -319,124 +328,23 @@ fun HomePage(
                             
                             Spacer(modifier = Modifier.height(20.dp))
                             
-                            // First Row (Indices 0, 1, 2)
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                for (i in 0..2) {
-                                    if (i < allActions.size) {
-                                        val (id, data) = allActions[i]
-                                        key(id) {
-                                            val targetSlot = when {
-                                                draggedIndex == null || targetIndex == null -> i
-                                                i == draggedIndex -> targetIndex!!
-                                                draggedIndex!! < targetIndex!! && i > draggedIndex!! && i <= targetIndex!! -> i - 1
-                                                draggedIndex!! > targetIndex!! && i < draggedIndex!! && i >= targetIndex!! -> i + 1
-                                                else -> i
-                                            }
-
-                                            val itemOffset = if (targetSlot != i) {
-                                                val currentPos = slotPositions[i] ?: Offset.Zero
-                                                val targetPos = slotPositions[targetSlot] ?: Offset.Zero
-                                                targetPos - currentPos
-                                            } else {
-                                                Offset.Zero
-                                            }
-
-                                            val animatedOffset by animateOffsetAsState(
-                                                targetValue = itemOffset,
-                                                label = "shiftOffset"
-                                            )
-
-                                            QuickActionItem(
-                                                modifier = Modifier
-                                                    .weight(1f)
-                                                    .onGloballyPositioned { coords ->
-                                                        rootCoordinates?.let { root ->
-                                                            slotPositions[i] = root.localPositionOf(coords, Offset.Zero)
-                                                            slotSizes[i] = coords.size
-                                                        }
-                                                    }
-                                                    .graphicsLayer {
-                                                        translationX = animatedOffset.x
-                                                        translationY = animatedOffset.y
-                                                        alpha = if (draggedIndex == i) 0.3f else 1f
-                                                    }
-                                                    .zIndex(if (draggedIndex == i) 0f else 1f)
-                                                    .pointerInput(isRearranging, i) {
-                                                        if (isRearranging) {
-                                                            detectDragGesturesAfterLongPress(
-                                                                onDragStart = { offset ->
-                                                                    draggedIndex = i
-                                                                    targetIndex = i
-                                                                    dragOffset = Offset.Zero
-                                                                    touchOffsetInItem = offset
-                                                                },
-                                                                onDrag = { change, amount ->
-                                                                    change.consume()
-                                                                    dragOffset += amount
-                                                                    
-                                                                    val currentDragPosition = (slotPositions[i] ?: Offset.Zero) + touchOffsetInItem + dragOffset
-                                                                    
-                                                                    var bestTarget = targetIndex
-                                                                    var minDistance = Float.MAX_VALUE
-                                                                    
-                                                                    slotPositions.forEach { (index, pos) ->
-                                                                        val size = slotSizes[index] ?: return@forEach
-                                                                        val center = pos + Offset(size.width / 2f, size.height / 2f)
-                                                                        val distance = (center - currentDragPosition).getDistance()
-                                                                        if (distance < minDistance) {
-                                                                            minDistance = distance
-                                                                            bestTarget = index
-                                                                        }
-                                                                    }
-                                                                    
-                                                                    if (bestTarget != targetIndex) {
-                                                                        targetIndex = bestTarget
-                                                                    }
-                                                                },
-                                                                onDragEnd = {
-                                                                    if (draggedIndex != null && targetIndex != null && draggedIndex != targetIndex) {
-                                                                        val item = allActions.removeAt(draggedIndex!!)
-                                                                        allActions.add(targetIndex!!, item)
-                                                                        
-                                                                        // Save new order
-                                                                        val newOrder = allActions.joinToString(",") { it.first }
-                                                                        sharedPrefs.edit().putString("quick_actions_order", newOrder).apply()
-                                                                    }
-                                                                    draggedIndex = null
-                                                                    targetIndex = null
-                                                                    dragOffset = Offset.Zero
-                                                                },
-                                                                onDragCancel = {
-                                                                    draggedIndex = null
-                                                                    targetIndex = null
-                                                                    dragOffset = Offset.Zero
-                                                                }
-                                                            )
-                                                        }
-                                                    },
-                                                icon = data.first,
-                                                label = data.second,
-                                                onClick = actionClickHandlers[id] ?: {},
-                                                isRearranging = isRearranging
-                                            )
-                                        }
-                                    } else {
-                                        Spacer(modifier = Modifier.weight(1f))
-                                    }
-                                }
+                            // Quick Actions Grid (3 columns)
+                            val rowCount = if (isExpanded) {
+                                (allActions.size + 2) / 3
+                            } else {
+                                1
                             }
 
-                            if (isExpanded) {
-                                Spacer(modifier = Modifier.height(12.dp))
-                                // Second Row (Indices 3, 4, 5)
+                            for (rowIndex in 0 until rowCount) {
+                                if (rowIndex > 0) {
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                }
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    for (i in 3 until 6) {
+                                    for (colIndex in 0 until 3) {
+                                        val i = rowIndex * 3 + colIndex
                                         if (i < allActions.size) {
                                             val (id, data) = allActions[i]
                                             key(id) {

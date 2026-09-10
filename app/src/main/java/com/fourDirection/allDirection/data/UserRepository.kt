@@ -1,11 +1,13 @@
 package com.fourDirection.allDirection.data
 
 import android.util.Log
+import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.util.UUID
 
 class UserRepository {
     private val db = FirebaseFirestore.getInstance()
@@ -15,6 +17,7 @@ class UserRepository {
             val userData = hashMapOf(
                 "uid" to user.uid,
                 "name" to (customName ?: user.displayName ?: ""),
+                "name_lowercase" to (customName ?: user.displayName ?: "").lowercase(),
                 "email" to (user.email ?: ""),
                 "photoUrl" to (user.photoUrl?.toString() ?: ""),
                 "createdAt" to com.google.firebase.Timestamp.now(),
@@ -66,7 +69,7 @@ class UserRepository {
                     mapOf(
                         "date" to plan.date.format(dateFormatter),
                         "description" to plan.description,
-                        "location" to plan.location,
+                        "locations" to plan.locations,
                         "events" to plan.events
                     )
                 }
@@ -107,10 +110,11 @@ class UserRepository {
                 
                 val dayPlans = dayPlansRaw.mapValues { (dateStr, data) ->
                     val eventsList = data["events"] as? List<*>
+                    val locationsList = data["locations"] as? List<*> ?: data["location"]?.let { listOf(it) } ?: emptyList<Any>()
                     DayPlan(
                         date = LocalDate.parse(dateStr, dateFormatter),
                         description = data["description"] as? String ?: "",
-                        location = data["location"] as? String ?: "",
+                        locations = locationsList.filterIsInstance<String>(),
                         events = eventsList?.filterIsInstance<String>() ?: emptyList()
                     )
                 }.mapKeys { LocalDate.parse(it.key, dateFormatter) }
@@ -131,6 +135,138 @@ class UserRepository {
         } catch (e: Exception) {
             Log.e("UserRepository", "Error deleting trip", e)
             throw e
+        }
+    }
+
+    // --- Connections Management ---
+
+    suspend fun searchUsersByName(query: String): List<Map<String, Any>> {
+        val lowercaseQuery = query.lowercase()
+        return try {
+            // Search using name_lowercase for case-insensitive matches
+            val lowercaseSnapshot = db.collection("users")
+                .whereGreaterThanOrEqualTo("name_lowercase", lowercaseQuery)
+                .whereLessThanOrEqualTo("name_lowercase", lowercaseQuery + "\uf8ff")
+                .limit(10)
+                .get().await()
+            
+            val results = lowercaseSnapshot.documents.mapNotNull { it.data }.toMutableList()
+
+            // If we didn't find enough results, try searching by original name field (case-sensitive)
+            // for users who haven't logged in since the name_lowercase change.
+            if (results.size < 5) {
+                val legacySnapshot = db.collection("users")
+                    .whereGreaterThanOrEqualTo("name", query)
+                    .whereLessThanOrEqualTo("name", query + "\uf8ff")
+                    .limit(10)
+                    .get().await()
+                
+                legacySnapshot.documents.forEach { doc ->
+                    val data = doc.data
+                    if (data != null && results.none { it["uid"] == data["uid"] }) {
+                        results.add(data)
+                    }
+                }
+            }
+            
+            results.take(10)
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error searching users", e)
+            emptyList()
+        }
+    }
+
+    suspend fun addConnection(uid: String, connectionUid: String, connectionName: String) {
+        try {
+            val connectionData = hashMapOf(
+                "uid" to connectionUid,
+                "name" to connectionName,
+                "addedAt" to Timestamp.now()
+            )
+            
+            // Add to current user's connections
+            db.collection("users").document(uid)
+                .collection("friends").document(connectionUid)
+                .set(connectionData).await()
+                
+            // Mutual connection
+            val currentUserName = getUserName(uid) ?: "User"
+            val meData = hashMapOf(
+                "uid" to uid,
+                "name" to currentUserName,
+                "addedAt" to Timestamp.now()
+            )
+            db.collection("users").document(connectionUid)
+                .collection("friends").document(uid)
+                .set(meData).await()
+                
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error adding connection", e)
+            throw e
+        }
+    }
+
+    suspend fun getConnections(uid: String): List<Map<String, Any>> {
+        return try {
+            val snapshot = db.collection("users").document(uid)
+                .collection("friends")
+                .orderBy("name")
+                .get().await()
+            
+            snapshot.documents.mapNotNull { it.data }
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error getting connections", e)
+            emptyList()
+        }
+    }
+
+    // --- Groups Management ---
+
+    suspend fun createGroup(uid: String, groupName: String, members: List<Map<String, String>>) {
+        try {
+            val groupId = UUID.randomUUID().toString()
+            val groupData = hashMapOf(
+                "id" to groupId,
+                "name" to groupName,
+                "createdBy" to uid,
+                "createdAt" to Timestamp.now(),
+                "memberUids" to (members.map { it["uid"] ?: "" } + uid).distinct()
+            )
+
+            // 1. Create the group in a global groups collection
+            db.collection("groups").document(groupId).set(groupData).await()
+
+            // 2. Add group reference to all members
+            val batch = db.batch()
+            val allMemberUids = (members.map { it["uid"] ?: "" } + uid).distinct()
+            
+            allMemberUids.forEach { memberUid ->
+                val memberGroupRef = db.collection("users").document(memberUid)
+                    .collection("myGroups").document(groupId)
+                batch.set(memberGroupRef, mapOf(
+                    "groupId" to groupId,
+                    "groupName" to groupName,
+                    "joinedAt" to Timestamp.now()
+                ))
+            }
+            batch.commit().await()
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error creating group", e)
+            throw e
+        }
+    }
+
+    suspend fun getMyGroups(uid: String): List<Map<String, Any>> {
+        return try {
+            val snapshot = db.collection("users").document(uid)
+                .collection("myGroups")
+                .orderBy("groupName")
+                .get().await()
+            
+            snapshot.documents.mapNotNull { it.data }
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error getting groups", e)
+            emptyList()
         }
     }
 }

@@ -1,6 +1,7 @@
 package com.fourDirection.allDirection.page.main
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -9,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -26,10 +28,9 @@ import dev.chrisbanes.haze.hazeChild
 
 sealed class NavItem(val route: String, val icon: ImageVector, val label: String) {
     data object Home : NavItem("home", Icons.Default.Home, "Home")
-    data object Explore : NavItem("explore", Icons.Default.Explore, "Explore")
-    data object Calendar : NavItem("calendar", Icons.Default.CalendarToday, "Calendar")
+    data object Planner : NavItem("planner", Icons.Default.Explore, "Explore")
     data object Booking : NavItem("AI", Icons.Default.AutoAwesome, "AI")
-    data object Saved : NavItem("saved", Icons.Default.Bookmark, "Saved")
+    data object Social : NavItem("social", Icons.Default.Group, "Social")
     data object Profile : NavItem("profile", Icons.Default.Person, "Profile")
 }
 
@@ -45,15 +46,16 @@ fun MainContainer(
     var isCurrencyConverterVisible by remember { mutableStateOf(false) }
     var isTipCalculatorVisible by remember { mutableStateOf(false) }
     var isEmergencyInfoVisible by remember { mutableStateOf(false) }
+    var isConnectionsVisible by remember { mutableStateOf(false) }
     var shouldFocusExploreSearch by remember { mutableStateOf(false) }
-    
+    var plannerSubTab by remember { mutableStateOf(0) } // 0 for Map, 1 for Calendar
+    var pendingLocationSearch by remember { mutableStateOf<String?>(null) }
     
     val items = listOf(
         NavItem.Home,
-        NavItem.Explore,
-        NavItem.Calendar,
+        NavItem.Planner,
         NavItem.Booking,
-        NavItem.Saved,
+        NavItem.Social,
         NavItem.Profile
     )
     
@@ -61,13 +63,15 @@ fun MainContainer(
     val hazeState = remember { HazeState() }
 
     // Handle system back button
-    BackHandler(enabled = selectedItem != 0 || isCurrencyConverterVisible || isTipCalculatorVisible || isEmergencyInfoVisible) {
+    BackHandler(enabled = selectedItem != 0 || isCurrencyConverterVisible || isTipCalculatorVisible || isEmergencyInfoVisible || isConnectionsVisible) {
         if (isCurrencyConverterVisible) {
             isCurrencyConverterVisible = false
         } else if (isTipCalculatorVisible) {
             isTipCalculatorVisible = false
         } else if (isEmergencyInfoVisible) {
             isEmergencyInfoVisible = false
+        } else if (isConnectionsVisible) {
+            isConnectionsVisible = false
         } else {
             selectedItem = 0
         }
@@ -77,7 +81,7 @@ fun MainContainer(
         containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
-            if (!isCurrencyConverterVisible && !isTipCalculatorVisible && !isEmergencyInfoVisible) {
+            if (!isCurrencyConverterVisible && !isTipCalculatorVisible && !isEmergencyInfoVisible && !isConnectionsVisible) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -152,24 +156,72 @@ fun MainContainer(
                     onCurrencyClick = { isCurrencyConverterVisible = true },
                     onTipClick = { isTipCalculatorVisible = true },
                     onEmergencyClick = { isEmergencyInfoVisible = true },
-                    onCalendarClick = { selectedItem = items.indexOf(NavItem.Calendar) },
+                    onConnectionsClick = { isConnectionsVisible = true },
+                    onCalendarClick = { 
+                        selectedItem = items.indexOf(NavItem.Planner)
+                        plannerSubTab = 1
+                    },
                     onSearchClick = { 
-                        selectedItem = items.indexOf(NavItem.Explore)
+                        selectedItem = items.indexOf(NavItem.Planner)
+                        plannerSubTab = 0
                         shouldFocusExploreSearch = true
                     }
                 )
-                NavItem.Explore -> ExplorePage(
-                    hazeState = hazeState,
-                    shouldFocusSearch = shouldFocusExploreSearch,
-                    onSearchFocused = { shouldFocusExploreSearch = false }
-                )
-                NavItem.Calendar -> CalendarPage()
+                NavItem.Planner -> {
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        if (plannerSubTab == 0) {
+                            ExplorePage(
+                                hazeState = hazeState,
+                                shouldFocusSearch = shouldFocusExploreSearch,
+                                initialSearchQuery = pendingLocationSearch,
+                                onSearchFocused = { 
+                                    shouldFocusExploreSearch = false
+                                    pendingLocationSearch = null
+                                }
+                            )
+                        } else {
+                            CalendarPage(
+                                onLocationClick = { location ->
+                                    pendingLocationSearch = location
+                                    plannerSubTab = 0
+                                }
+                            )
+                        }
+                        
+                        // Top Switcher Docker
+                        Surface(
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .padding(top = 80.dp)
+                                .clip(CircleShape),
+                            color = Color.Black.copy(alpha = 0.6f),
+                            border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.2f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                SubTabItem(
+                                    label = "Map",
+                                    isSelected = plannerSubTab == 0,
+                                    onClick = { plannerSubTab = 0 }
+                                )
+                                SubTabItem(
+                                    label = "Calendar",
+                                    isSelected = plannerSubTab == 1,
+                                    onClick = { plannerSubTab = 1 }
+                                )
+                            }
+                        }
+                    }
+                }
                 NavItem.Booking -> AiPage(hazeState = hazeState)
-                NavItem.Saved -> PlaceholderPage("Saved")
+                NavItem.Social -> SocialPage()
                 NavItem.Profile -> ProfilePage(
                     userName = userName,
                     userEmail = userEmail,
-                    onSignOut = onSignOut
+                    onSignOut = onSignOut,
+                    onConnectionsClick = { isConnectionsVisible = true }
                 )
             }
 
@@ -185,8 +237,38 @@ fun MainContainer(
                 EmergencyInfoPage(onDismiss = { isEmergencyInfoVisible = false })
             }
 
+            if (isConnectionsVisible) {
+                ConnectionsPage(onDismiss = { isConnectionsVisible = false })
+            }
+
             // Acknowledge innerPadding to satisfy Scaffold lint without clipping the content
-            Spacer(Modifier.padding(innerPadding).align(androidx.compose.ui.Alignment.BottomCenter))
+            Spacer(Modifier.padding(innerPadding).align(Alignment.BottomCenter))
+        }
+    }
+}
+
+@Composable
+fun SubTabItem(
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        color = if (isSelected) GlowBlue else Color.Transparent,
+        shape = CircleShape,
+        modifier = Modifier.height(36.dp)
+    ) {
+        Box(
+            modifier = Modifier.padding(horizontal = 16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = label,
+                color = if (isSelected) Color.Black else Color.White.copy(alpha = 0.7f),
+                fontSize = 13.sp,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+            )
         }
     }
 }
