@@ -1,27 +1,32 @@
 package com.fourDirection.allDirection.page.main
 
 import android.util.Log
-import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.fourDirection.allDirection.data.DayPlan
 import com.fourDirection.allDirection.data.Trip
 import com.fourDirection.allDirection.data.UserRepository
 import com.google.firebase.auth.FirebaseAuth
 import com.mapbox.search.*
 import com.mapbox.search.result.SearchResult
 import com.mapbox.search.result.SearchSuggestion
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 class CalendarViewModel : ViewModel() {
     private val userRepository = UserRepository()
     private val auth = FirebaseAuth.getInstance()
+    private val db = FirebaseFirestore.getInstance()
 
-    private val _trips = mutableStateListOf<Trip>()
-    val trips: List<Trip> get() = _trips
+    private val _trips = MutableStateFlow<List<Trip>>(emptyList())
+    val trips = _trips.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading = _isLoading.asStateFlow()
@@ -29,10 +34,28 @@ class CalendarViewModel : ViewModel() {
     private val _errorEvents = MutableSharedFlow<String>()
     val errorEvents = _errorEvents.asSharedFlow()
 
+    private val dateFormatter = DateTimeFormatter.ISO_LOCAL_DATE
+
     // --- Search Logic ---
     private var searchEngine: SearchEngine? = null
     private val _suggestions = MutableStateFlow<List<SearchSuggestion>>(emptyList())
     val suggestions = _suggestions.asStateFlow()
+
+    private var tripsListener: ListenerRegistration? = null
+
+    private val authStateListener = FirebaseAuth.AuthStateListener { firebaseAuth ->
+        val uid = firebaseAuth.currentUser?.uid
+        if (uid != null) {
+            startTripsListener(uid)
+        } else {
+            stopTripsListener()
+            _trips.value = emptyList()
+        }
+    }
+
+    init {
+        auth.addAuthStateListener(authStateListener)
+    }
 
     fun initSearchEngine(accessToken: String) {
         if (searchEngine == null) {
@@ -87,19 +110,55 @@ class CalendarViewModel : ViewModel() {
         })
     }
 
-    init {
-        loadTrips()
+    private fun startTripsListener(uid: String) {
+        tripsListener?.remove()
+        tripsListener = db.collection("users").document(uid)
+            .collection("trips")
+            .addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    Log.e("CalendarViewModel", "Error listening to trips", e)
+                    return@addSnapshotListener
+                }
+
+                val loadedTrips = snapshot?.documents?.mapNotNull { doc ->
+                    val id = doc.getString("id") ?: return@mapNotNull null
+                    val name = doc.getString("name") ?: ""
+                    val startStr = doc.getString("startDate") ?: return@mapNotNull null
+                    val endStr = doc.getString("endDate") ?: return@mapNotNull null
+                    
+                    val startDate = LocalDate.parse(startStr, dateFormatter)
+                    val endDate = LocalDate.parse(endStr, dateFormatter)
+                    
+                    @Suppress("UNCHECKED_CAST")
+                    val dayPlansRaw = doc.get("dayPlans") as? Map<String, Map<String, Any>> ?: emptyMap()
+                    
+                    val dayPlans = dayPlansRaw.mapValues { (dateStr, data) ->
+                        val eventsList = data["events"] as? List<*>
+                        val locationsList = data["locations"] as? List<*> ?: data["location"]?.let { listOf(it) } ?: emptyList<Any>()
+                        DayPlan(
+                            date = LocalDate.parse(dateStr, dateFormatter),
+                            description = data["description"] as? String ?: "",
+                            locations = locationsList.filterIsInstance<String>(),
+                            events = eventsList?.filterIsInstance<String>() ?: emptyList()
+                        )
+                    }.mapKeys { LocalDate.parse(it.key, dateFormatter) }
+
+                    Trip(id, name, startDate, endDate, dayPlans)
+                } ?: emptyList()
+
+                _trips.value = loadedTrips
+            }
     }
 
-    fun loadTrips() {
-        val uid = auth.currentUser?.uid ?: return
-        viewModelScope.launch {
-            _isLoading.value = true
-            val loadedTrips = userRepository.getTrips(uid)
-            _trips.clear()
-            _trips.addAll(loadedTrips)
-            _isLoading.value = false
-        }
+    private fun stopTripsListener() {
+        tripsListener?.remove()
+        tripsListener = null
+    }
+
+    override fun onCleared() {
+        auth.removeAuthStateListener(authStateListener)
+        stopTripsListener()
+        super.onCleared()
     }
 
     fun saveTrip(trip: Trip) {
@@ -108,13 +167,6 @@ class CalendarViewModel : ViewModel() {
             try {
                 _isLoading.value = true
                 userRepository.saveTrip(uid, trip)
-                // Refresh local list
-                val index = _trips.indexOfFirst { it.id == trip.id }
-                if (index != -1) {
-                    _trips[index] = trip
-                } else {
-                    _trips.add(trip)
-                }
             } catch (e: Exception) {
                 _errorEvents.emit("Failed to save trip: ${e.message}")
             } finally {
@@ -126,8 +178,11 @@ class CalendarViewModel : ViewModel() {
     fun deleteTrip(tripId: String) {
         val uid = auth.currentUser?.uid ?: return
         viewModelScope.launch {
-            userRepository.deleteTrip(uid, tripId)
-            _trips.removeIf { it.id == tripId }
+            try {
+                userRepository.deleteTrip(uid, tripId)
+            } catch (e: Exception) {
+                _errorEvents.emit("Failed to delete trip: ${e.message}")
+            }
         }
     }
 }

@@ -21,14 +21,14 @@ class UserRepository {
                 "name_lowercase" to (customName ?: user.displayName ?: "").lowercase(),
                 "email" to (user.email ?: ""),
                 "photoUrl" to (user.photoUrl?.toString() ?: ""),
-                "createdAt" to com.google.firebase.Timestamp.now(),
+                "createdAt" to Timestamp.now(),
                 "totalDistance" to 0.0,
-                "lastLogin" to com.google.firebase.Timestamp.now()
+                "lastLogin" to Timestamp.now()
             )
 
             db.collection("users").document(user.uid).set(userData).await()
         } catch (e: Exception) {
-            android.util.Log.e("UserRepository", "Error saving user to Firestore", e)
+            Log.e("UserRepository", "Error saving user to Firestore", e)
             throw e
         }
     }
@@ -53,7 +53,7 @@ class UserRepository {
 
     suspend fun updateLastLogin(uid: String) {
         try {
-            db.collection("users").document(uid).update("lastLogin", com.google.firebase.Timestamp.now()).await()
+            db.collection("users").document(uid).update("lastLogin", Timestamp.now()).await()
         } catch (e: Exception) {
             // Log error
         }
@@ -372,6 +372,61 @@ class UserRepository {
                 .collection("messages").add(messageData).await()
         } catch (e: Exception) {
             Log.e("UserRepository", "Error sending message", e)
+            throw e
+        }
+    }
+
+    suspend fun updateGroupDescription(groupId: String, description: String) {
+        try {
+            db.collection("groups").document(groupId)
+                .update("description", description)
+                .await()
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error updating group description", e)
+            throw e
+        }
+    }
+
+    suspend fun kickMember(groupId: String, memberUid: String) {
+        try {
+            db.collection("groups").document(groupId)
+                .update("memberUids", FieldValue.arrayRemove(memberUid))
+                .await()
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error kicking member", e)
+            throw e
+        }
+    }
+
+    suspend fun updateGroupName(groupId: String, name: String) {
+        try {
+            db.collection("groups").document(groupId)
+                .update("name", name)
+                .await()
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error updating group name", e)
+            throw e
+        }
+    }
+
+    suspend fun pinGroup(uid: String, groupId: String) {
+        try {
+            db.collection("users").document(uid)
+                .update("pinnedGroups", FieldValue.arrayUnion(groupId))
+                .await()
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error pinning group", e)
+            throw e
+        }
+    }
+
+    suspend fun unpinGroup(uid: String, groupId: String) {
+        try {
+            db.collection("users").document(uid)
+                .update("pinnedGroups", FieldValue.arrayRemove(groupId))
+                .await()
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error unpinning group", e)
             throw e
         }
     }

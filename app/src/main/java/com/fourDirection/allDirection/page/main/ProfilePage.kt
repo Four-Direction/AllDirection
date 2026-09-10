@@ -1,5 +1,6 @@
 package com.fourDirection.allDirection.page.main
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -138,7 +139,7 @@ private fun ProfileOption(
             .height(56.dp),
         shape = MaterialTheme.shapes.medium,
         color = Color.White.copy(alpha = 0.05f),
-        border = androidx.compose.foundation.BorderStroke(
+        border = BorderStroke(
             0.5.dp,
             Color.White.copy(alpha = 0.1f)
         )

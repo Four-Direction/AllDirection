@@ -6,9 +6,12 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateOffsetAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -16,6 +19,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -28,6 +32,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.*
@@ -35,14 +40,24 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.round
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fourDirection.allDirection.data.DayPlan
 import com.fourDirection.allDirection.data.Trip
@@ -54,6 +69,7 @@ import java.time.Month
 import java.time.YearMonth
 import java.time.format.TextStyle
 import java.util.Locale
+import kotlin.math.abs
 
 @Composable
 fun CalendarPage(
@@ -69,8 +85,11 @@ fun CalendarPage(
     // Trip Planning State
     var rangeStart by remember { mutableStateOf<LocalDate?>(null) }
     var rangeEnd by remember { mutableStateOf<LocalDate?>(null) }
-    val trips = viewModel.trips
-    var selectedTrip by remember { mutableStateOf<Trip?>(null) }
+    val trips by viewModel.trips.collectAsState()
+    var selectedTripId by remember { mutableStateOf<String?>(null) }
+    val selectedTrip = remember(trips, selectedTripId) {
+        trips.find { it.id == selectedTripId }
+    }
     var isCreationMode by remember { mutableStateOf(false) }
     val isLoading by viewModel.isLoading.collectAsState()
     var editingDayPlan by remember { mutableStateOf<DayPlan?>(null) }
@@ -80,13 +99,6 @@ fun CalendarPage(
         viewModel.initSearchEngine(accessToken)
         viewModel.errorEvents.collectLatest { error ->
             Toast.makeText(context, error, Toast.LENGTH_LONG).show()
-        }
-    }
-
-    // Synchronize selectedTrip with ViewModel list updates
-    LaunchedEffect(trips) {
-        selectedTrip?.let { current ->
-            selectedTrip = trips.find { it.id == current.id }
         }
     }
 
@@ -206,7 +218,7 @@ fun CalendarPage(
                                             rangeEnd = date
                                         }
                                     } else if (tripForDate != null) {
-                                        selectedTrip = tripForDate
+                                        selectedTripId = tripForDate.id
                                     }
                                 }
                             )
@@ -318,7 +330,7 @@ fun CalendarPage(
                                             endDate = rangeEnd!!
                                         )
                                         viewModel.saveTrip(newTrip)
-                                        selectedTrip = newTrip
+                                        selectedTripId = newTrip.id
                                         isCreationMode = false
                                         rangeStart = null
                                         rangeEnd = null
@@ -356,13 +368,13 @@ fun CalendarPage(
             ) {
                 if (selectedTrip != null) {
                     TripDetailView(
-                        trip = selectedTrip!!,
-                        onDismiss = { selectedTrip = null },
+                        trip = selectedTrip,
+                        onDismiss = { selectedTripId = null },
                         onEditDay = { editingDayPlan = it },
                         onLocationClick = onLocationClick,
                         onDeleteTrip = {
-                            viewModel.deleteTrip(selectedTrip!!.id)
-                            selectedTrip = null
+                            viewModel.deleteTrip(selectedTrip.id)
+                            selectedTripId = null
                         }
                     )
                 }
@@ -376,9 +388,9 @@ fun CalendarPage(
                     onDismiss = { editingDayPlan = null },
                     onLocationClick = onLocationClick,
                     onSave = { updatedPlan ->
-                        val newPlans = selectedTrip!!.dayPlans.toMutableMap()
+                        val newPlans = selectedTrip.dayPlans.toMutableMap()
                         newPlans[updatedPlan.date] = updatedPlan
-                        val updatedTrip = selectedTrip!!.copy(dayPlans = newPlans)
+                        val updatedTrip = selectedTrip.copy(dayPlans = newPlans)
                         viewModel.saveTrip(updatedTrip)
                         editingDayPlan = null
                     }
@@ -838,21 +850,134 @@ fun DayPlanEditDialog(
                         if (locations.isNotEmpty()) {
                             Text("Locations", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
                             Spacer(modifier = Modifier.height(8.dp))
-                            locations.forEach { loc ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 4.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.LocationOn, contentDescription = null, tint = GlowBlue, modifier = Modifier.size(16.dp))
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(text = loc, color = Color.White, fontSize = 14.sp)
+                            
+                            var draggedIndex by remember { mutableStateOf<Int?>(null) }
+                            var targetIndex by remember { mutableStateOf<Int?>(null) }
+                            var dragYOffset by remember { mutableStateOf(0f) }
+                            val slotPositions = remember { mutableStateMapOf<Int, Float>() }
+                            val slotHeights = remember { mutableStateMapOf<Int, Int>() }
+                            var editRootCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
+
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .onGloballyPositioned { editRootCoordinates = it }
+                            ) {
+                                locations.forEachIndexed { index, loc ->
+                                    val isBeingDragged = draggedIndex == index
+                                    
+                                    val targetSlot = when {
+                                        draggedIndex == null || targetIndex == null -> index
+                                        index == draggedIndex -> targetIndex!!
+                                        draggedIndex!! < targetIndex!! && index > draggedIndex!! && index <= targetIndex!! -> index - 1
+                                        draggedIndex!! > targetIndex!! && index < draggedIndex!! && index >= targetIndex!! -> index + 1
+                                        else -> index
                                     }
-                                    IconButton(onClick = { locations = locations.filter { it != loc } }, modifier = Modifier.size(24.dp)) {
-                                        Icon(Icons.Default.Delete, contentDescription = "Remove", tint = Color.Red.copy(alpha = 0.6f), modifier = Modifier.size(16.dp))
+
+                                    val itemOffset = if (targetSlot != index) {
+                                        val currentPos = slotPositions[index] ?: 0f
+                                        val targetPos = slotPositions[targetSlot] ?: 0f
+                                        targetPos - currentPos
+                                    } else {
+                                        0f
+                                    }
+
+                                    val animatedYOffset by animateFloatAsState(targetValue = itemOffset, label = "reorder")
+
+                                    Surface(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 2.dp)
+                                            .onGloballyPositioned { coords ->
+                                                editRootCoordinates?.let { root ->
+                                                    slotPositions[index] = root.localPositionOf(coords, Offset.Zero).y
+                                                    slotHeights[index] = coords.size.height
+                                                }
+                                            }
+                                            .graphicsLayer {
+                                                translationY = if (isBeingDragged) dragYOffset else animatedYOffset
+                                                alpha = if (isBeingDragged) 0.8f else 1f
+                                                scaleX = if (isBeingDragged) 1.02f else 1f
+                                                scaleY = if (isBeingDragged) 1.02f else 1f
+                                            }
+                                            .zIndex(if (isBeingDragged) 10f else 0f),
+                                        color = if (isBeingDragged) Color.White.copy(alpha = 0.1f) else Color.Transparent,
+                                        shape = RoundedCornerShape(12.dp),
+                                        border = if (isBeingDragged) BorderStroke(1.dp, GlowBlue.copy(alpha = 0.5f)) else null
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(Icons.Default.LocationOn, contentDescription = null, tint = GlowBlue, modifier = Modifier.size(16.dp))
+                                                Spacer(modifier = Modifier.width(12.dp))
+                                                Text(text = loc, color = Color.White, fontSize = 14.sp)
+                                            }
+                                            
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                IconButton(onClick = { locations = locations.filterIndexed { i, _ -> i != index } }, modifier = Modifier.size(32.dp)) {
+                                                    Icon(Icons.Default.Delete, contentDescription = "Remove", tint = Color.Red.copy(alpha = 0.6f), modifier = Modifier.size(18.dp))
+                                                }
+                                                
+                                                Icon(
+                                                    imageVector = Icons.Default.DragHandle,
+                                                    contentDescription = "Reorder",
+                                                    tint = Color.White.copy(alpha = 0.5f),
+                                                    modifier = Modifier
+                                                        .size(40.dp)
+                                                        .padding(8.dp)
+                                                        .pointerInput(index) {
+                                                            detectDragGestures(
+                                                                onDragStart = {
+                                                                    draggedIndex = index
+                                                                    targetIndex = index
+                                                                    dragYOffset = 0f
+                                                                },
+                                                                onDrag = { change, dragAmount ->
+                                                                    change.consume()
+                                                                    dragYOffset += dragAmount.y
+                                                                    
+                                                                    val currentY = (slotPositions[index] ?: 0f) + dragYOffset + (slotHeights[index] ?: 0) / 2f
+                                                                    
+                                                                    var bestTarget = targetIndex
+                                                                    var minDistance = Float.MAX_VALUE
+                                                                    
+                                                                    slotPositions.forEach { (i, pos) ->
+                                                                        val height = slotHeights[i] ?: 0
+                                                                        val center = pos + height / 2f
+                                                                        val distance = abs(center - currentY)
+                                                                        if (distance < minDistance) {
+                                                                            minDistance = distance
+                                                                            bestTarget = i
+                                                                        }
+                                                                    }
+                                                                    targetIndex = bestTarget
+                                                                },
+                                                                onDragEnd = {
+                                                                    if (draggedIndex != null && targetIndex != null && draggedIndex != targetIndex) {
+                                                                        val list = locations.toMutableList()
+                                                                        val item = list.removeAt(draggedIndex!!)
+                                                                        list.add(targetIndex!!, item)
+                                                                        locations = list
+                                                                    }
+                                                                    draggedIndex = null
+                                                                    targetIndex = null
+                                                                    dragYOffset = 0f
+                                                                },
+                                                                onDragCancel = {
+                                                                    draggedIndex = null
+                                                                    targetIndex = null
+                                                                    dragYOffset = 0f
+                                                                }
+                                                            )
+                                                        }
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
