@@ -5,7 +5,12 @@ import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.SetOptions
+import com.google.firebase.storage.FirebaseStorage
+import android.util.Base64
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.UUID
@@ -13,20 +18,35 @@ import java.util.UUID
 class UserRepository {
     private val db = FirebaseFirestore.getInstance()
 
-    suspend fun saveUserToFirestore(user: FirebaseUser, customName: String? = null) {
+    suspend fun saveUserToFirestore(user: FirebaseUser, customName: String? = null, customPhotoUrl: String? = null) {
         try {
-            val userData = hashMapOf(
+            // Check if user already exists to avoid overwriting custom data
+            val docRef = db.collection("users").document(user.uid)
+            val snapshot = docRef.get().await()
+            
+            val userData = mutableMapOf<String, Any>(
                 "uid" to user.uid,
-                "name" to (customName ?: user.displayName ?: ""),
-                "name_lowercase" to (customName ?: user.displayName ?: "").lowercase(),
                 "email" to (user.email ?: ""),
-                "photoUrl" to (user.photoUrl?.toString() ?: ""),
-                "createdAt" to com.google.firebase.Timestamp.now(),
-                "totalDistance" to 0.0,
                 "lastLogin" to com.google.firebase.Timestamp.now()
             )
 
-            db.collection("users").document(user.uid).set(userData).await()
+            if (!snapshot.exists()) {
+                // New user - set defaults
+                userData["name"] = customName ?: user.displayName ?: "User"
+                userData["name_lowercase"] = (userData["name"] as String).lowercase()
+                userData["photoUrl"] = customPhotoUrl ?: user.photoUrl?.toString() ?: ""
+                userData["createdAt"] = com.google.firebase.Timestamp.now()
+                userData["totalDistance"] = 0.0
+                docRef.set(userData).await()
+            } else {
+                // Existing user - only update login time and name/photo if explicitly provided
+                customName?.let { 
+                    userData["name"] = it
+                    userData["name_lowercase"] = it.lowercase()
+                }
+                customPhotoUrl?.let { userData["photoUrl"] = it }
+                docRef.set(userData, SetOptions.merge()).await()
+            }
         } catch (e: Exception) {
             android.util.Log.e("UserRepository", "Error saving user to Firestore", e)
             throw e
@@ -56,6 +76,67 @@ class UserRepository {
             db.collection("users").document(uid).update("lastLogin", com.google.firebase.Timestamp.now()).await()
         } catch (e: Exception) {
             // Log error
+        }
+    }
+
+    suspend fun updateUserInfo(uid: String, name: String, photoUrl: String? = null) {
+        try {
+            val updates = hashMapOf<String, Any>(
+                "name" to name,
+                "name_lowercase" to name.lowercase()
+            )
+            photoUrl?.let { updates["photoUrl"] = it }
+            
+            db.collection("users").document(uid).update(updates).await()
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error updating user info", e)
+            throw e
+        }
+    }
+
+    suspend fun uploadProfilePicture(uid: String, imageUri: android.net.Uri): String {
+        return try {
+            val storageRef = FirebaseStorage.getInstance().reference
+            val profilePicRef = storageRef.child("profile_pictures/$uid.jpg")
+            
+            profilePicRef.putFile(imageUri).await()
+            profilePicRef.downloadUrl.await().toString()
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error uploading profile picture", e)
+            throw e
+        }
+    }
+
+    suspend fun encodeImageToBase64(context: android.content.Context, imageUri: android.net.Uri): String {
+        return withContext(Dispatchers.IO) {
+            try {
+                val inputStream = context.contentResolver.openInputStream(imageUri)
+                val originalBitmap = android.graphics.BitmapFactory.decodeStream(inputStream)
+                inputStream?.close()
+
+                if (originalBitmap != null) {
+                    // Resize/Compress image to ensure it fits in Firestore (limit 1MB)
+                    val maxSize = 400
+                    val width = originalBitmap.width
+                    val height = originalBitmap.height
+                    val ratio = width.toFloat() / height.toFloat()
+                    
+                    val newWidth = if (width > height) maxSize else (maxSize * ratio).toInt()
+                    val newHeight = if (height > width) maxSize else (maxSize / ratio).toInt()
+                    
+                    val scaledBitmap = android.graphics.Bitmap.createScaledBitmap(originalBitmap, newWidth, newHeight, true)
+                    val outputStream = java.io.ByteArrayOutputStream()
+                    scaledBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 70, outputStream)
+                    val bytes = outputStream.toByteArray()
+                    
+                    Base64.encodeToString(bytes, Base64.NO_WRAP)
+                } else {
+                    throw Exception("Failed to decode bitmap")
+                }
+            } catch (e: Exception) {
+                Log.e("UserRepository", "Error encoding image to Base64", e)
+                throw e
+            }
         }
     }
 

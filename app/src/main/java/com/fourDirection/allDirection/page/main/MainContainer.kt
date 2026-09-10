@@ -38,16 +38,18 @@ sealed class NavItem(val route: String, val icon: ImageVector, val label: String
 fun MainContainer(
     userName: String,
     userEmail: String,
+    userPhotoUrl: String,
     totalDistance: Double,
     period: String,
-    onSignOut: () -> Unit
+    onSignOut: () -> Unit,
+    onUserUpdate: (String, String) -> Unit
 ) {
     var selectedItem by remember { mutableStateOf(0) }
     var isCurrencyConverterVisible by remember { mutableStateOf(false) }
     var isTipCalculatorVisible by remember { mutableStateOf(false) }
     var isEmergencyInfoVisible by remember { mutableStateOf(false) }
     var isConnectionsVisible by remember { mutableStateOf(false) }
-    var selectedGroupForChat by remember { mutableStateOf<Map<String, Any>?>(null) }
+    var isAccountVisible by remember { mutableStateOf(false) }
     var shouldFocusExploreSearch by remember { mutableStateOf(false) }
     var plannerSubTab by remember { mutableStateOf(0) } // 0 for Map, 1 for Calendar
     var pendingLocationSearch by remember { mutableStateOf<String?>(null) }
@@ -64,7 +66,7 @@ fun MainContainer(
     val hazeState = remember { HazeState() }
 
     // Handle system back button
-    BackHandler(enabled = selectedItem != 0 || isCurrencyConverterVisible || isTipCalculatorVisible || isEmergencyInfoVisible || isConnectionsVisible || selectedGroupForChat != null) {
+    BackHandler(enabled = selectedItem != 0 || isCurrencyConverterVisible || isTipCalculatorVisible || isEmergencyInfoVisible || isConnectionsVisible || isAccountVisible) {
         if (isCurrencyConverterVisible) {
             isCurrencyConverterVisible = false
         } else if (isTipCalculatorVisible) {
@@ -73,8 +75,8 @@ fun MainContainer(
             isEmergencyInfoVisible = false
         } else if (isConnectionsVisible) {
             isConnectionsVisible = false
-        } else if (selectedGroupForChat != null) {
-            selectedGroupForChat = null
+        } else if (isAccountVisible) {
+            isAccountVisible = false
         } else {
             selectedItem = 0
         }
@@ -84,7 +86,7 @@ fun MainContainer(
         containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
-            if (!isCurrencyConverterVisible && !isTipCalculatorVisible && !isEmergencyInfoVisible && !isConnectionsVisible && selectedGroupForChat == null) {
+            if (!isCurrencyConverterVisible && !isTipCalculatorVisible && !isEmergencyInfoVisible && !isConnectionsVisible && !isAccountVisible) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -219,11 +221,13 @@ fun MainContainer(
                     }
                 }
                 NavItem.Booking -> AiPage(hazeState = hazeState)
-                NavItem.Social -> SocialPage(onGroupClick = { selectedGroupForChat = it })
+                NavItem.Social -> SocialPage()
                 NavItem.Profile -> ProfilePage(
                     userName = userName,
                     userEmail = userEmail,
+                    userPhotoUrl = userPhotoUrl,
                     onSignOut = onSignOut,
+                    onAccountClick = { isAccountVisible = true },
                     onConnectionsClick = { isConnectionsVisible = true }
                 )
             }
@@ -244,11 +248,12 @@ fun MainContainer(
                 ConnectionsPage(onDismiss = { isConnectionsVisible = false })
             }
 
-            selectedGroupForChat?.let { group ->
-                GroupChatPage(
-                    groupId = group["id"] as String,
-                    groupName = group["groupName"] as? String ?: "Group",
-                    onDismiss = { selectedGroupForChat = null }
+            if (isAccountVisible) {
+                AccountPage(
+                    userName = userName,
+                    photoUrl = userPhotoUrl,
+                    onDismiss = { isAccountVisible = false },
+                    onUpdateSuccess = onUserUpdate
                 )
             }
 

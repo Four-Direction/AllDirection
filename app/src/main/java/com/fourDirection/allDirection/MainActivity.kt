@@ -73,6 +73,7 @@ class MainActivity : ComponentActivity() {
                     mutableStateOf(if (authManager.currentUser != null) Screen.Home else Screen.Welcome) 
                 }
                 var userName by remember { mutableStateOf("User") }
+                var userPhotoUrl by remember { mutableStateOf("") }
                 var totalDistance by remember { mutableDoubleStateOf(0.0) }
                 var period by remember { mutableStateOf("day") }
 
@@ -83,12 +84,13 @@ class MainActivity : ComponentActivity() {
                             val userData = userRepository.getUserTravelData(uid)
                             if (userData != null) {
                                 userName = userData["name"] as? String ?: "User"
+                                userPhotoUrl = userData["photoUrl"] as? String ?: ""
                                 totalDistance = (userData["totalDistance"] as? Number)?.toDouble() ?: 0.0
                                 
                                 // Ensure name_lowercase exists for search
                                 if (userData["name_lowercase"] == null && userName != "User") {
                                     lifecycleScope.launch {
-                                        userRepository.saveUserToFirestore(authManager.currentUser!!, userName)
+                                        userRepository.saveUserToFirestore(authManager.currentUser!!, userName, userPhotoUrl)
                                     }
                                 }
                                 
@@ -158,11 +160,16 @@ class MainActivity : ComponentActivity() {
                             MainContainer(
                                 userName = userName,
                                 userEmail = authManager.currentUser?.email ?: "",
+                                userPhotoUrl = userPhotoUrl,
                                 totalDistance = totalDistance,
                                 period = period,
                                 onSignOut = {
                                     authManager.signOut()
                                     currentScreen = Screen.Welcome
+                                },
+                                onUserUpdate = { newName, newPhoto ->
+                                    userName = newName
+                                    userPhotoUrl = newPhoto
                                 }
                             )
                         }
