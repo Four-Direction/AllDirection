@@ -67,6 +67,7 @@ dependencies {
     implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
+    implementation("com.google.firebase:firebase-storage")
     implementation(libs.google.play.services.auth)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.10.1")
     implementation("io.ktor:ktor-client-android:2.3.12")
