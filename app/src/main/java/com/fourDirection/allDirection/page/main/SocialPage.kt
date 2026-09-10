@@ -27,12 +27,15 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fourDirection.allDirection.data.UserRepository
 import com.fourDirection.allDirection.ui.theme.GlowBlue
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class SocialViewModel : ViewModel() {
     private val userRepository = UserRepository()
+    private val db = FirebaseFirestore.getInstance()
     private val auth = FirebaseAuth.getInstance()
     private val currentUid get() = auth.currentUser?.uid
 
@@ -45,18 +48,58 @@ class SocialViewModel : ViewModel() {
     private val _isLoading = MutableStateFlow(false)
     val isLoading = _isLoading.asStateFlow()
 
-    init {
-        loadSocialData()
+    private var connectionsListener: ListenerRegistration? = null
+    private var groupsListener: ListenerRegistration? = null
+
+    private val authStateListener = FirebaseAuth.AuthStateListener { firebaseAuth ->
+        val uid = firebaseAuth.currentUser?.uid
+        if (uid != null) {
+            startRealtimeListeners(uid)
+        } else {
+            stopRealtimeListeners()
+            _connections.value = emptyList()
+            _myGroups.value = emptyList()
+        }
     }
 
-    fun loadSocialData() {
-        val uid = currentUid ?: return
-        viewModelScope.launch {
-            _isLoading.value = true
-            _connections.value = userRepository.getConnections(uid)
-            _myGroups.value = userRepository.getMyGroups(uid)
-            _isLoading.value = false
-        }
+    init {
+        auth.addAuthStateListener(authStateListener)
+    }
+
+    private fun startRealtimeListeners(uid: String) {
+        stopRealtimeListeners()
+        
+        // Listen for Connections
+        connectionsListener = db.collection("users").document(uid)
+            .collection("friends")
+            .orderBy("name")
+            .addSnapshotListener { snapshot, _ ->
+                _connections.value = snapshot?.documents?.mapNotNull { it.data } ?: emptyList()
+            }
+            
+        // Listen for Groups I am a member of
+        groupsListener = db.collection("groups")
+            .whereArrayContains("memberUids", uid)
+            .addSnapshotListener { snapshot, _ ->
+                _myGroups.value = snapshot?.documents?.mapNotNull { doc ->
+                    val data = doc.data?.toMutableMap() ?: return@mapNotNull null
+                    data["groupName"] = data["name"]
+                    data
+                } ?: emptyList()
+            }
+    }
+
+    private fun stopRealtimeListeners() {
+        connectionsListener?.remove()
+        groupsListener?.remove()
+        connectionsListener = null
+        groupsListener = null
+    }
+
+    override fun onCleared() {
+        auth.removeAuthStateListener(authStateListener)
+        stopRealtimeListeners()
+        super.onCleared()
     }
 
     fun createGroup(name: String, selectedMembers: List<Map<String, String>>) {
@@ -65,7 +108,6 @@ class SocialViewModel : ViewModel() {
             _isLoading.value = true
             try {
                 userRepository.createGroup(uid, name, selectedMembers)
-                loadSocialData()
             } catch (e: Exception) {
                 // Log or handle error
             } finally {
@@ -73,10 +115,35 @@ class SocialViewModel : ViewModel() {
             }
         }
     }
+
+    fun deleteGroup(groupId: String) {
+        viewModelScope.launch {
+            try {
+                userRepository.deleteGroup(groupId)
+            } catch (e: Exception) {
+                // Log or handle error
+            }
+        }
+    }
+
+    fun leaveGroup(groupId: String) {
+        val uid = currentUid ?: return
+        viewModelScope.launch {
+            try {
+                userRepository.leaveGroup(groupId, uid)
+            } catch (e: Exception) {
+                // Log or handle error
+            }
+        }
+    }
+
+    fun isCreator(group: Map<String, Any>): Boolean {
+        return group["createdBy"] == currentUid
+    }
 }
 
 @Composable
-fun SocialPage() {
+fun SocialPage(onGroupClick: (Map<String, Any>) -> Unit = {}) {
     val viewModel: SocialViewModel = viewModel()
     var selectedTab by remember { mutableStateOf(0) } // 0 for Groups, 1 for Community
     val isLoading by viewModel.isLoading.collectAsState()
@@ -128,7 +195,7 @@ fun SocialPage() {
                 }
 
                 if (selectedTab == 0) {
-                    GroupList(viewModel)
+                    GroupList(viewModel, onGroupClick)
                 } else {
                     PlaceholderPage("Community Coming Soon")
                 }
@@ -160,8 +227,9 @@ fun SocialPage() {
 }
 
 @Composable
-fun GroupList(viewModel: SocialViewModel) {
+fun GroupList(viewModel: SocialViewModel, onGroupClick: (Map<String, Any>) -> Unit) {
     val groups by viewModel.myGroups.collectAsState()
+    var selectedGroupForOptions by remember { mutableStateOf<Map<String, Any>?>(null) }
 
     if (groups.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -175,32 +243,103 @@ fun GroupList(viewModel: SocialViewModel) {
         ) {
             items(groups) { group ->
                 Surface(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onGroupClick(group) },
                     color = Color.White.copy(alpha = 0.05f),
                     shape = RoundedCornerShape(16.dp),
                     border = androidx.compose.foundation.BorderStroke(0.5.dp, Color.White.copy(alpha = 0.1f))
                 ) {
                     Row(
                         modifier = Modifier.padding(20.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(CircleShape)
-                                .background(GlowBlue.copy(alpha = 0.1f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.Groups, contentDescription = null, tint = GlowBlue)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .background(GlowBlue.copy(alpha = 0.1f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Default.Groups, contentDescription = null, tint = GlowBlue)
+                            }
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Text(
+                                text = group["groupName"] as? String ?: "Unnamed Group",
+                                color = Color.White,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                         }
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Text(
-                            text = group["groupName"] as? String ?: "Unnamed Group",
-                            color = Color.White,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        
+                        IconButton(onClick = { selectedGroupForOptions = group }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "Options", tint = Color.White.copy(alpha = 0.6f))
+                        }
                     }
+                }
+            }
+        }
+    }
+
+    selectedGroupForOptions?.let { group ->
+        GroupOptionsDialog(
+            groupName = group["groupName"] as? String ?: "Group",
+            isCreator = viewModel.isCreator(group),
+            onDismiss = { selectedGroupForOptions = null },
+            onDelete = {
+                viewModel.deleteGroup(group["id"] as String)
+                selectedGroupForOptions = null
+            },
+            onLeave = {
+                viewModel.leaveGroup(group["id"] as String)
+                selectedGroupForOptions = null
+            }
+        )
+    }
+}
+
+@Composable
+fun GroupOptionsDialog(
+    groupName: String,
+    isCreator: Boolean,
+    onDismiss: () -> Unit,
+    onDelete: () -> Unit,
+    onLeave: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = Color(0xFF1A1A1A),
+            modifier = Modifier.fillMaxWidth().padding(16.dp)
+        ) {
+            Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(text = groupName, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                if (isCreator) {
+                    Button(
+                        onClick = onDelete,
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.2f))
+                    ) {
+                        Text("Delete Group", color = Color.Red)
+                    }
+                } else {
+                    Button(
+                        onClick = onLeave,
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.2f))
+                    ) {
+                        Text("Leave Group", color = Color.Red)
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                TextButton(onClick = onDismiss) {
+                    Text("Cancel", color = Color.White.copy(alpha = 0.6f))
                 }
             }
         }

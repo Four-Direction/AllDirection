@@ -4,6 +4,7 @@ import android.util.Log
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FieldValue
 import kotlinx.coroutines.tasks.await
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -140,6 +141,87 @@ class UserRepository {
 
     // --- Connections Management ---
 
+    suspend fun sendConnectionRequest(fromUid: String, fromName: String, toUid: String) {
+        try {
+            val batch = db.batch()
+            
+            // 1. Incoming request for the receiver
+            val requestData = hashMapOf(
+                "fromUid" to fromUid,
+                "fromName" to fromName,
+                "sentAt" to Timestamp.now()
+            )
+            val incomingRef = db.collection("users").document(toUid)
+                .collection("connectionRequests").document(fromUid)
+            batch.set(incomingRef, requestData)
+            
+            // 2. Track outgoing request for the sender (to show "Requested" status correctly)
+            val outgoingRef = db.collection("users").document(fromUid)
+                .collection("sentRequests").document(toUid)
+            batch.set(outgoingRef, mapOf(
+                "toUid" to toUid,
+                "sentAt" to Timestamp.now()
+            ))
+            
+            batch.commit().await()
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error sending request", e)
+            throw e
+        }
+    }
+
+    suspend fun getConnectionRequests(uid: String): List<Map<String, Any>> {
+        return try {
+            val snapshot = db.collection("users").document(uid)
+                .collection("connectionRequests").get().await()
+            snapshot.documents.mapNotNull { it.data }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    suspend fun acceptConnectionRequest(uid: String, currentUserName: String, friendUid: String, friendName: String) {
+        try {
+            val batch = db.batch()
+            
+            // 1. Add to my connections
+            val myConnRef = db.collection("users").document(uid)
+                .collection("friends").document(friendUid)
+            batch.set(myConnRef, mapOf("uid" to friendUid, "name" to friendName, "addedAt" to Timestamp.now()))
+            
+            // 2. Add to their connections
+            val theirConnRef = db.collection("users").document(friendUid)
+                .collection("friends").document(uid)
+            batch.set(theirConnRef, mapOf("uid" to uid, "name" to currentUserName, "addedAt" to Timestamp.now()))
+            
+            // 3. Delete the incoming request from my folder
+            val reqRef = db.collection("users").document(uid)
+                .collection("connectionRequests").document(friendUid)
+            batch.delete(reqRef)
+            
+            // 4. Delete the outgoing request record from THEIR folder
+            val theirSentRef = db.collection("users").document(friendUid)
+                .collection("sentRequests").document(uid)
+            batch.delete(theirSentRef)
+            
+            batch.commit().await()
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error accepting request", e)
+            throw e
+        }
+    }
+
+    suspend fun removeConnection(uid: String, friendUid: String) {
+        try {
+            val batch = db.batch()
+            batch.delete(db.collection("users").document(uid).collection("friends").document(friendUid))
+            batch.delete(db.collection("users").document(friendUid).collection("friends").document(uid))
+            batch.commit().await()
+        } catch (e: Exception) {
+            throw e
+        }
+    }
+
     suspend fun searchUsersByName(query: String): List<Map<String, Any>> {
         val lowercaseQuery = query.lowercase()
         return try {
@@ -233,23 +315,8 @@ class UserRepository {
                 "memberUids" to (members.map { it["uid"] ?: "" } + uid).distinct()
             )
 
-            // 1. Create the group in a global groups collection
+            // Create the group in a global groups collection
             db.collection("groups").document(groupId).set(groupData).await()
-
-            // 2. Add group reference to all members
-            val batch = db.batch()
-            val allMemberUids = (members.map { it["uid"] ?: "" } + uid).distinct()
-            
-            allMemberUids.forEach { memberUid ->
-                val memberGroupRef = db.collection("users").document(memberUid)
-                    .collection("myGroups").document(groupId)
-                batch.set(memberGroupRef, mapOf(
-                    "groupId" to groupId,
-                    "groupName" to groupName,
-                    "joinedAt" to Timestamp.now()
-                ))
-            }
-            batch.commit().await()
         } catch (e: Exception) {
             Log.e("UserRepository", "Error creating group", e)
             throw e
@@ -258,15 +325,54 @@ class UserRepository {
 
     suspend fun getMyGroups(uid: String): List<Map<String, Any>> {
         return try {
-            val snapshot = db.collection("users").document(uid)
-                .collection("myGroups")
-                .orderBy("groupName")
+            val snapshot = db.collection("groups")
+                .whereArrayContains("memberUids", uid)
                 .get().await()
             
-            snapshot.documents.mapNotNull { it.data }
+            snapshot.documents.mapNotNull { doc ->
+                val data = doc.data?.toMutableMap() ?: return@mapNotNull null
+                data["groupName"] = data["name"] // Mapping for UI consistency
+                data
+            }
         } catch (e: Exception) {
             Log.e("UserRepository", "Error getting groups", e)
             emptyList()
+        }
+    }
+
+    suspend fun deleteGroup(groupId: String) {
+        try {
+            db.collection("groups").document(groupId).delete().await()
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error deleting group", e)
+            throw e
+        }
+    }
+
+    suspend fun leaveGroup(groupId: String, uid: String) {
+        try {
+            db.collection("groups").document(groupId)
+                .update("memberUids", FieldValue.arrayRemove(uid))
+                .await()
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error leaving group", e)
+            throw e
+        }
+    }
+
+    suspend fun sendMessage(groupId: String, senderUid: String, senderName: String, text: String) {
+        try {
+            val messageData = hashMapOf(
+                "senderUid" to senderUid,
+                "senderName" to senderName,
+                "text" to text,
+                "timestamp" to Timestamp.now()
+            )
+            db.collection("groups").document(groupId)
+                .collection("messages").add(messageData).await()
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error sending message", e)
+            throw e
         }
     }
 }
