@@ -2,7 +2,6 @@ package com.fourDirection.allDirection.page.main
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -23,6 +22,7 @@ import com.fourDirection.allDirection.page.map.ExplorePage
 import com.fourDirection.allDirection.page.tinyApps.CurrencyConverterPage
 import com.fourDirection.allDirection.page.tinyApps.EmergencyInfoPage
 import com.fourDirection.allDirection.page.tinyApps.TipCalculatorPage
+import com.fourDirection.allDirection.page.tinyApps.BudgetTrackerPage
 import com.fourDirection.allDirection.ui.theme.GlowBlue
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.haze
@@ -50,6 +50,7 @@ fun MainContainer(
     var isCurrencyConverterVisible by remember { mutableStateOf(false) }
     var isTipCalculatorVisible by remember { mutableStateOf(false) }
     var isEmergencyInfoVisible by remember { mutableStateOf(false) }
+    var isBudgetTrackerVisible by remember { mutableStateOf(false) }
     var isConnectionsVisible by remember { mutableStateOf(false) }
     var isAccountVisible by remember { mutableStateOf(false) }
     var selectedGroup by remember { mutableStateOf<Map<String, Any>?>(null) }
@@ -70,13 +71,15 @@ fun MainContainer(
     val hazeState = remember { HazeState() }
 
     // Handle system back button
-    BackHandler(enabled = selectedItem != 0 || isCurrencyConverterVisible || isTipCalculatorVisible || isEmergencyInfoVisible || isConnectionsVisible || isAccountVisible || selectedGroup != null) {
+    BackHandler(enabled = selectedItem != 0 || isCurrencyConverterVisible || isTipCalculatorVisible || isEmergencyInfoVisible || isBudgetTrackerVisible || isConnectionsVisible || isAccountVisible || selectedGroup != null) {
         if (isCurrencyConverterVisible) {
             isCurrencyConverterVisible = false
         } else if (isTipCalculatorVisible) {
             isTipCalculatorVisible = false
         } else if (isEmergencyInfoVisible) {
             isEmergencyInfoVisible = false
+        } else if (isBudgetTrackerVisible) {
+            isBudgetTrackerVisible = false
         } else if (isConnectionsVisible) {
             isConnectionsVisible = false
         } else if (isAccountVisible) {
@@ -92,12 +95,12 @@ fun MainContainer(
         containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
-            if (!isCurrencyConverterVisible && !isTipCalculatorVisible && !isEmergencyInfoVisible && !isConnectionsVisible && !isAccountVisible && selectedGroup == null) {
+            if (!isCurrencyConverterVisible && !isTipCalculatorVisible && !isEmergencyInfoVisible && !isBudgetTrackerVisible && !isConnectionsVisible && !isAccountVisible && selectedGroup == null) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 24.dp, vertical = 24.dp),
-                    contentAlignment = androidx.compose.ui.Alignment.Center
+                    contentAlignment = Alignment.Center
                 ) {
                     Surface(
                         modifier = Modifier
@@ -167,6 +170,7 @@ fun MainContainer(
                     onCurrencyClick = { isCurrencyConverterVisible = true },
                     onTipClick = { isTipCalculatorVisible = true },
                     onEmergencyClick = { isEmergencyInfoVisible = true },
+                    onBudgetClick = { isBudgetTrackerVisible = true },
                     onConnectionsClick = { isConnectionsVisible = true },
                     onCalendarClick = { 
                         selectedItem = items.indexOf(NavItem.Planner)
@@ -253,6 +257,10 @@ fun MainContainer(
                 EmergencyInfoPage(onDismiss = { isEmergencyInfoVisible = false })
             }
 
+            if (isBudgetTrackerVisible) {
+                BudgetTrackerPage(onDismiss = { isBudgetTrackerVisible = false })
+            }
+
             if (isConnectionsVisible) {
                 ConnectionsPage(onDismiss = { isConnectionsVisible = false })
             }
@@ -312,7 +320,7 @@ fun PlaceholderPage(title: String) {
         modifier = Modifier.fillMaxSize(),
         color = Color.Black
     ) {
-        Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
+        Box(contentAlignment = Alignment.Center) {
             Text(text = title, color = Color.White, style = MaterialTheme.typography.headlineLarge)
         }
     }

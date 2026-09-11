@@ -1,6 +1,7 @@
 package com.fourDirection.allDirection.page.main
 
 import android.content.Context
+import androidx.core.content.edit
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -8,7 +9,6 @@ import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.round
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.geometry.Size
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateOffsetAsState
 import androidx.compose.foundation.BorderStroke
@@ -81,11 +81,12 @@ fun HomePage(
     onCurrencyClick: () -> Unit = {},
     onTipClick: () -> Unit = {},
     onEmergencyClick: () -> Unit = {},
+    onBudgetClick: () -> Unit = {},
     onConnectionsClick: () -> Unit = {},
     onCalendarClick: () -> Unit = {},
     onSearchClick: () -> Unit = {},
-    selectedRoute: String = "home",
-    onRouteSelected: (String) -> Unit = {}
+    @Suppress("unused") selectedRoute: String = "home",
+    @Suppress("unused") onRouteSelected: (String) -> Unit = {},
 ) {
     val context = LocalContext.current
     val travelRepository = remember { TravelRepository(context) }
@@ -99,6 +100,7 @@ fun HomePage(
         "emergency" to (Icons.Default.HealthAndSafety to "Emergency"),
         "connections" to (Icons.Default.Group to "Connections"),
         "calendar" to (Icons.Default.CalendarToday to "Calendar"),
+        "budget" to (Icons.Default.AccountBalanceWallet to "Budget"),
         "translate" to (Icons.Default.Translate to "Translate"),
         "map" to (Icons.Default.Map to "Offline Map")
     )
@@ -112,14 +114,17 @@ fun HomePage(
             val validIds = savedIds.filter { actionDefinitions.containsKey(it) }
             val missingIds = actionDefinitions.keys.filterNot { validIds.contains(it) }
             
-            // If connections is a missing ID (new feature), put it at the start
+            // If connections or budget is a missing ID (new feature), put it at the start
+            var finalOrder = validIds
             if (missingIds.contains("connections")) {
-                listOf("connections") + validIds + (missingIds - "connections")
-            } else {
-                validIds + missingIds
+                finalOrder = listOf("connections") + finalOrder
             }
+            if (missingIds.contains("budget")) {
+                finalOrder += "budget"
+            }
+            finalOrder + (missingIds - "connections" - "budget")
         } else {
-            listOf("connections", "calendar", "currency", "tip", "emergency", "translate", "map")
+            listOf("connections", "calendar", "budget", "currency", "tip", "emergency", "translate", "map")
         }
         
         mutableStateListOf<Pair<String, Pair<ImageVector, String>>>().apply {
@@ -144,6 +149,7 @@ fun HomePage(
         "emergency" to onEmergencyClick,
         "connections" to onConnectionsClick,
         "calendar" to onCalendarClick,
+        "budget" to onBudgetClick,
         "translate" to {},
         "map" to {}
     )
@@ -259,8 +265,8 @@ fun HomePage(
                     Spacer(modifier = Modifier.height(24.dp))
 
                     // --- QUICK ACTION WIDGET ---
-                    var isExpanded by remember { mutableStateOf(false) }
-                    var isRearranging by remember { mutableStateOf(false) }
+                    var isExpanded by remember { mutableStateOf(value = false) }
+                    var isRearranging by remember { mutableStateOf(value = false) }
 
                     Surface(
                         modifier = Modifier
@@ -346,7 +352,7 @@ fun HomePage(
                                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
                                     for (colIndex in 0 until 3) {
-                                        val i = rowIndex * 3 + colIndex
+                                        val i = (rowIndex * 3) + colIndex
                                         if (i < allActions.size) {
                                             val (id, data) = allActions[i]
                                             key(id) {
@@ -425,7 +431,7 @@ fun HomePage(
                                                                             
                                                                             // Save new order
                                                                             val newOrder = allActions.joinToString(",") { it.first }
-                                                                            sharedPrefs.edit().putString("quick_actions_order", newOrder).apply()
+                                                                            sharedPrefs.edit { putString("quick_actions_order", newOrder) }
                                                                         }
                                                                         draggedIndex = null
                                                                         targetIndex = null

@@ -9,7 +9,6 @@ import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FieldValue
 import kotlinx.coroutines.tasks.await
-import java.io.InputStream
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.UUID
@@ -69,7 +68,7 @@ class UserRepository {
         return try {
             val document = db.collection("users").document(uid).get().await()
             document.getString("name")
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         }
     }
@@ -127,6 +126,7 @@ class UserRepository {
         }
     }
 
+    @Suppress("unused")
     suspend fun getTrips(uid: String): List<Trip> {
         return try {
             val snapshot = db.collection("users").document(uid)
@@ -208,6 +208,7 @@ class UserRepository {
         }
     }
 
+    @Suppress("unused")
     suspend fun getConnectionRequests(uid: String): List<Map<String, Any>> {
         return try {
             val snapshot = db.collection("users").document(uid)
@@ -296,6 +297,7 @@ class UserRepository {
         }
     }
 
+    @Suppress("unused")
     suspend fun addConnection(uid: String, connectionUid: String, connectionName: String) {
         try {
             val connectionData = hashMapOf(
@@ -326,6 +328,7 @@ class UserRepository {
         }
     }
 
+    @Suppress("unused")
     suspend fun getConnections(uid: String): List<Map<String, Any>> {
         return try {
             val snapshot = db.collection("users").document(uid)
@@ -361,6 +364,7 @@ class UserRepository {
         }
     }
 
+    @Suppress("unused")
     suspend fun getMyGroups(uid: String): List<Map<String, Any>> {
         return try {
             val snapshot = db.collection("groups")
@@ -465,6 +469,121 @@ class UserRepository {
                 .await()
         } catch (e: Exception) {
             Log.e("UserRepository", "Error unpinning group", e)
+            throw e
+        }
+    }
+
+    // --- Budget Plan Management ---
+
+    suspend fun saveBudgetPlan(uid: String, plan: BudgetPlan) {
+        try {
+            val budgetData = hashMapOf(
+                "id" to plan.id,
+                "tripId" to plan.tripId,
+                "tripName" to plan.tripName,
+                "startDate" to plan.startDate.format(dateFormatter),
+                "endDate" to plan.endDate.format(dateFormatter),
+                "baseCurrency" to plan.baseCurrency,
+                "exchangeCurrency" to plan.exchangeCurrency,
+                "isLocalTrip" to plan.isLocalTrip,
+                "isGroup" to plan.isGroup,
+                "groupType" to plan.groupType.name,
+                "customCategories" to plan.customCategories,
+                "individualBudgets" to plan.individualBudgets.map {
+                    mapOf(
+                        "id" to it.id,
+                        "name" to it.name,
+                        "amount" to it.amount,
+                        "isAmountInExchangeCurrency" to it.isAmountInExchangeCurrency
+                    )
+                },
+                "expenses" to plan.expenses.map {
+                    mapOf(
+                        "id" to it.id,
+                        "name" to it.name,
+                        "amount" to it.amount,
+                        "category" to it.category,
+                        "individualId" to it.individualId
+                    )
+                }
+            )
+
+            db.collection("users").document(uid)
+                .collection("budgetPlans").document(plan.id)
+                .set(budgetData).await()
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error saving budget plan", e)
+            throw e
+        }
+    }
+
+    suspend fun getBudgetPlans(uid: String): List<BudgetPlan> {
+        return try {
+            val snapshot = db.collection("users").document(uid)
+                .collection("budgetPlans").get().await()
+
+            snapshot.documents.mapNotNull { doc ->
+                val id = doc.getString("id") ?: return@mapNotNull null
+                val tripName = doc.getString("tripName") ?: ""
+                val startStr = doc.getString("startDate") ?: return@mapNotNull null
+                val endStr = doc.getString("endDate") ?: return@mapNotNull null
+                val startDate = LocalDate.parse(startStr, dateFormatter)
+                val endDate = LocalDate.parse(endStr, dateFormatter)
+
+                @Suppress("UNCHECKED_CAST")
+                val individualsRaw = doc.get("individualBudgets") as? List<Map<String, Any>> ?: emptyList()
+                val individualBudgets = individualsRaw.map {
+                    IndividualBudget(
+                        id = it["id"] as? String ?: UUID.randomUUID().toString(),
+                        name = it["name"] as? String ?: "",
+                        amount = (it["amount"] as? Number)?.toDouble() ?: 0.0,
+                        isAmountInExchangeCurrency = it["isAmountInExchangeCurrency"] as? Boolean ?: false
+                    )
+                }
+
+                @Suppress("UNCHECKED_CAST")
+                val expensesRaw = doc.get("expenses") as? List<Map<String, Any>> ?: emptyList()
+                val expenses = expensesRaw.map {
+                    ExpenseItem(
+                        id = it["id"] as? String ?: UUID.randomUUID().toString(),
+                        name = it["name"] as? String ?: "",
+                        amount = (it["amount"] as? Number)?.toDouble() ?: 0.0,
+                        category = it["category"] as? String ?: "",
+                        individualId = it["individualId"] as? String
+                    )
+                }
+
+                @Suppress("UNCHECKED_CAST")
+                val customCats = doc.get("customCategories") as? List<String> ?: emptyList()
+                BudgetPlan(
+                    id = id,
+                    tripId = doc.getString("tripId"),
+                    tripName = tripName,
+                    startDate = startDate,
+                    endDate = endDate,
+                    baseCurrency = doc.getString("baseCurrency") ?: "USD",
+                    exchangeCurrency = doc.getString("exchangeCurrency") ?: "USD",
+                    isLocalTrip = doc.getBoolean("isLocalTrip") ?: false,
+                    isGroup = doc.getBoolean("isGroup") ?: false,
+                    groupType = GroupBudgetType.valueOf(doc.getString("groupType") ?: "INDIVIDUAL"),
+                    individualBudgets = individualBudgets,
+                    expenses = expenses,
+                    customCategories = customCats
+                )
+            }
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error getting budget plans", e)
+            emptyList()
+        }
+    }
+
+    suspend fun deleteBudgetPlan(uid: String, planId: String) {
+        try {
+            db.collection("users").document(uid)
+                .collection("budgetPlans").document(planId)
+                .delete().await()
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error deleting budget plan", e)
             throw e
         }
     }
