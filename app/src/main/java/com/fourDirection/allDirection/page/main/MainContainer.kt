@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fourDirection.allDirection.page.main.GroupChatPage
+import com.fourDirection.allDirection.page.map.ExplorePage
 import com.fourDirection.allDirection.page.tinyApps.CurrencyConverterPage
 import com.fourDirection.allDirection.page.tinyApps.EmergencyInfoPage
 import com.fourDirection.allDirection.page.tinyApps.TipCalculatorPage
@@ -53,6 +54,7 @@ fun MainContainer(
     var isAccountVisible by remember { mutableStateOf(false) }
     var selectedGroup by remember { mutableStateOf<Map<String, Any>?>(null) }
     var shouldFocusExploreSearch by remember { mutableStateOf(false) }
+    var isRoutingActive by remember { mutableStateOf(false) }
     var plannerSubTab by remember { mutableStateOf(0) } // 0 for Map, 1 for Calendar
     var pendingLocationSearch by remember { mutableStateOf<String?>(null) }
     
@@ -186,7 +188,8 @@ fun MainContainer(
                                 onSearchFocused = { 
                                     shouldFocusExploreSearch = false
                                     pendingLocationSearch = null
-                                }
+                                },
+                                onRoutingModeChange = { isRoutingActive = it }
                             )
                         } else {
                             CalendarPage(
@@ -198,28 +201,30 @@ fun MainContainer(
                         }
                         
                         // Top Switcher Docker
-                        Surface(
-                            modifier = Modifier
-                                .align(Alignment.TopCenter)
-                                .padding(top = 80.dp)
-                                .clip(CircleShape),
-                            color = Color.Black.copy(alpha = 0.6f),
-                            border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.2f))
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(4.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                        if (!isRoutingActive) {
+                            Surface(
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .padding(top = 80.dp)
+                                    .clip(CircleShape),
+                                color = Color.Black.copy(alpha = 0.6f),
+                                border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.2f))
                             ) {
-                                SubTabItem(
-                                    label = "Map",
-                                    isSelected = plannerSubTab == 0,
-                                    onClick = { plannerSubTab = 0 }
-                                )
-                                SubTabItem(
-                                    label = "Calendar",
-                                    isSelected = plannerSubTab == 1,
-                                    onClick = { plannerSubTab = 1 }
-                                )
+                                Row(
+                                    modifier = Modifier.padding(4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    SubTabItem(
+                                        label = "Map",
+                                        isSelected = plannerSubTab == 0,
+                                        onClick = { plannerSubTab = 0 }
+                                    )
+                                    SubTabItem(
+                                        label = "Calendar",
+                                        isSelected = plannerSubTab == 1,
+                                        onClick = { plannerSubTab = 1 }
+                                    )
+                                }
                             }
                         }
                     }

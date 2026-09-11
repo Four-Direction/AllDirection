@@ -103,7 +103,10 @@ class UserRepository {
                         "date" to plan.date.format(dateFormatter),
                         "description" to plan.description,
                         "locations" to plan.locations,
-                        "events" to plan.events
+                        "events" to plan.events,
+                        "hotel" to plan.hotel,
+                        "startLocation" to plan.startLocation,
+                        "endLocation" to plan.endLocation
                     )
                 }
 
@@ -148,7 +151,10 @@ class UserRepository {
                         date = LocalDate.parse(dateStr, dateFormatter),
                         description = data["description"] as? String ?: "",
                         locations = locationsList.filterIsInstance<String>(),
-                        events = eventsList?.filterIsInstance<String>() ?: emptyList()
+                        events = eventsList?.filterIsInstance<String>() ?: emptyList(),
+                        hotel = data["hotel"] as? String,
+                        startLocation = data["startLocation"] as? String,
+                        endLocation = data["endLocation"] as? String
                     )
                 }.mapKeys { LocalDate.parse(it.key, dateFormatter) }
 

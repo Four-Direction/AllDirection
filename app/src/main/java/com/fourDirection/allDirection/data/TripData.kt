@@ -15,5 +15,8 @@ data class DayPlan(
     val date: LocalDate,
     val description: String = "",
     val locations: List<String> = emptyList(),
-    val events: List<String> = emptyList()
+    val events: List<String> = emptyList(),
+    val hotel: String? = null,
+    val startLocation: String? = null,
+    val endLocation: String? = null
 )

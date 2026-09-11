@@ -28,6 +28,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.TripOrigin
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -40,6 +42,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -56,7 +59,10 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.round
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fourDirection.allDirection.data.DayPlan
@@ -384,6 +390,7 @@ fun CalendarPage(
             if (editingDayPlan != null && selectedTrip != null) {
                 DayPlanEditDialog(
                     dayPlan = editingDayPlan!!,
+                    trip = selectedTrip,
                     viewModel = viewModel,
                     onDismiss = { editingDayPlan = null },
                     onLocationClick = onLocationClick,
@@ -392,7 +399,7 @@ fun CalendarPage(
                         newPlans[updatedPlan.date] = updatedPlan
                         val updatedTrip = selectedTrip.copy(dayPlans = newPlans)
                         viewModel.saveTrip(updatedTrip)
-                        editingDayPlan = null
+                        editingDayPlan = updatedPlan // Update local state to reflect changes
                     }
                 )
             }
@@ -720,9 +727,17 @@ fun DayPlanCard(
                 
                 Spacer(modifier = Modifier.height(4.dp))
                 
+                if (dayPlan.startLocation != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.TripOrigin, contentDescription = null, tint = GlowBlue, modifier = Modifier.size(10.dp))
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text(text = "Start: ${dayPlan.startLocation}", color = Color.White, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+
                 if (dayPlan.locations.isNotEmpty()) {
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        dayPlan.locations.take(2).forEach { loc ->
+                        dayPlan.locations.take(1).forEach { loc ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.LocationOn, contentDescription = null, tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(10.dp))
                                 Spacer(modifier = Modifier.width(2.dp))
@@ -735,9 +750,28 @@ fun DayPlanCard(
                                 )
                             }
                         }
-                        if (dayPlan.locations.size > 2) {
-                            Text("+${dayPlan.locations.size - 2} more", color = GlowBlue, fontSize = 8.sp)
-                        }
+                    }
+                }
+
+                if (dayPlan.endLocation != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Place, contentDescription = null, tint = Color.Red, modifier = Modifier.size(10.dp))
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text(text = "End: ${dayPlan.endLocation}", color = Color.White, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+                
+                if (dayPlan.hotel != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
+                        Icon(Icons.Default.LocationOn, contentDescription = null, tint = GlowBlue, modifier = Modifier.size(10.dp))
+                        Spacer(modifier = Modifier.width(2.dp))
+                        Text(
+                            text = "Hotel: ${dayPlan.hotel}",
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
                 
@@ -758,6 +792,7 @@ fun DayPlanCard(
 @Composable
 fun DayPlanEditDialog(
     dayPlan: DayPlan,
+    trip: Trip,
     viewModel: CalendarViewModel,
     onDismiss: () -> Unit,
     onLocationClick: (String) -> Unit = {},
@@ -765,22 +800,26 @@ fun DayPlanEditDialog(
 ) {
     var isEditing by remember { mutableStateOf(false) }
     var locations by remember { mutableStateOf(dayPlan.locations) }
-    var newLocationQuery by remember { mutableStateOf("") }
+    var hotel by remember { mutableStateOf(dayPlan.hotel) }
+    var startLocation by remember { mutableStateOf(dayPlan.startLocation) }
+    var endLocation by remember { mutableStateOf(dayPlan.endLocation) }
     var description by remember { mutableStateOf(dayPlan.description) }
+    
     val suggestions by viewModel.suggestions.collectAsState()
-    var showSuggestions by remember { mutableStateOf(false) }
+    var activeSearchField by remember { mutableStateOf<String?>(null) } // "locations", "hotel", "start", "end"
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.85f),
+                .fillMaxHeight(0.9f),
             shape = RoundedCornerShape(24.dp),
             color = Color(0xFF1A1A1A),
             tonalElevation = 8.dp,
             border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
         ) {
             Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
+                // Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -799,91 +838,98 @@ fun DayPlanEditDialog(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                Column(modifier = Modifier.weight(1f)) {
+                Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                     if (!isEditing) {
                         // VIEW MODE
-                        if (locations.isEmpty() && description.isBlank()) {
-                            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        if (locations.isEmpty() && description.isBlank() && hotel == null && startLocation == null && endLocation == null) {
+                            Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
                                 Text("No plans for today.", color = Color.White.copy(alpha = 0.3f))
                             }
                         } else {
-                            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                                if (locations.isNotEmpty()) {
-                                    Text("Locations", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    locations.forEach { loc ->
-                                        Surface(
-                                            onClick = { onLocationClick(loc) },
-                                            color = Color.White.copy(alpha = 0.05f),
-                                            shape = RoundedCornerShape(12.dp),
-                                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                            border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.1f))
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.padding(16.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Icon(Icons.Default.LocationOn, contentDescription = null, tint = GlowBlue, modifier = Modifier.size(20.dp))
-                                                Spacer(modifier = Modifier.width(12.dp))
-                                                Text(text = loc, color = Color.White, fontSize = 15.sp)
-                                            }
-                                        }
-                                    }
+                            if (startLocation != null) {
+                                ViewLocationItem("Starting From", startLocation!!, onLocationClick)
+                            }
+                            
+                            if (locations.isNotEmpty()) {
+                                Text("Locations", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp, modifier = Modifier.padding(vertical = 8.dp))
+                                locations.forEach { loc ->
+                                    ViewLocationItem(null, loc, onLocationClick)
                                 }
+                            }
+                            
+                            if (hotel != null) {
+                                ViewLocationItem("Hotel", hotel!!, onLocationClick)
+                            }
+                            
+                            if (endLocation != null) {
+                                ViewLocationItem("Final Destination", endLocation!!, onLocationClick)
+                            }
 
-                                if (description.isNotBlank()) {
-                                    Spacer(modifier = Modifier.height(24.dp))
-                                    Text("Daily Notes", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text(
-                                        text = description,
-                                        color = Color.White,
-                                        fontSize = 15.sp,
-                                        lineHeight = 22.sp
-                                    )
-                                }
+                            if (description.isNotBlank()) {
+                                Spacer(modifier = Modifier.height(24.dp))
+                                Text("Daily Notes", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(text = description, color = Color.White, fontSize = 15.sp, lineHeight = 22.sp)
                             }
                         }
                     } else {
                         // EDIT MODE
-                        // Current Locations List
-                        if (locations.isNotEmpty()) {
-                            Text("Locations", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            
-                            var draggedIndex by remember { mutableStateOf<Int?>(null) }
-                            var targetIndex by remember { mutableStateOf<Int?>(null) }
-                            var dragYOffset by remember { mutableStateOf(0f) }
-                            val slotPositions = remember { mutableStateMapOf<Int, Float>() }
-                            val slotHeights = remember { mutableStateMapOf<Int, Int>() }
-                            var editRootCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
+                        val isFirstDay = dayPlan.date == trip.startDate
+                        val isLastDay = dayPlan.date == trip.endDate
+                        
+                        // Start Location (First Day Only)
+                        if (isFirstDay) {
+                            EditAddressField(
+                                label = "Start Location",
+                                value = startLocation,
+                                isActive = activeSearchField == "start",
+                                onActivate = { activeSearchField = "start" },
+                                onValueChange = { viewModel.onSearchQueryChanged(it) },
+                                onRemove = { startLocation = null },
+                                suggestions = suggestions,
+                                onSuggestionSelect = { startLocation = it; activeSearchField = null }
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                        }
 
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .onGloballyPositioned { editRootCoordinates = it }
-                            ) {
-                                locations.forEachIndexed { index, loc ->
-                                    val isBeingDragged = draggedIndex == index
-                                    
-                                    val targetSlot = when {
-                                        draggedIndex == null || targetIndex == null -> index
-                                        index == draggedIndex -> targetIndex!!
-                                        draggedIndex!! < targetIndex!! && index > draggedIndex!! && index <= targetIndex!! -> index - 1
-                                        draggedIndex!! > targetIndex!! && index < draggedIndex!! && index >= targetIndex!! -> index + 1
-                                        else -> index
-                                    }
+                        // Locations List
+                        Text("Locations", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        var draggedIndex by remember { mutableStateOf<Int?>(null) }
+                        var targetIndex by remember { mutableStateOf<Int?>(null) }
+                        var dragYOffset by remember { mutableStateOf(0f) }
+                        val slotPositions = remember { mutableStateMapOf<Int, Float>() }
+                        val slotHeights = remember { mutableStateMapOf<Int, Int>() }
+                        var editRootCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
 
-                                    val itemOffset = if (targetSlot != index) {
-                                        val currentPos = slotPositions[index] ?: 0f
-                                        val targetPos = slotPositions[targetSlot] ?: 0f
-                                        targetPos - currentPos
-                                    } else {
-                                        0f
-                                    }
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .onGloballyPositioned { editRootCoordinates = it }
+                        ) {
+                            locations.forEachIndexed { index, loc ->
+                                val isBeingDragged = draggedIndex == index
+                                
+                                val targetSlot = when {
+                                    draggedIndex == null || targetIndex == null -> index
+                                    index == draggedIndex -> targetIndex!!
+                                    draggedIndex!! < targetIndex!! && index > draggedIndex!! && index <= targetIndex!! -> index - 1
+                                    draggedIndex!! > targetIndex!! && index < draggedIndex!! && index >= targetIndex!! -> index + 1
+                                    else -> index
+                                }
 
-                                    val animatedYOffset by animateFloatAsState(targetValue = itemOffset, label = "reorder")
+                                val itemOffset = if (targetSlot != index) {
+                                    val currentPos = slotPositions[index] ?: 0f
+                                    val targetPos = slotPositions[targetSlot] ?: 0f
+                                    targetPos - currentPos
+                                } else {
+                                    0f
+                                }
 
+                                val animatedYOffset by animateFloatAsState(targetValue = itemOffset, label = "reorder")
+
+                                key(loc + index) {
                                     Surface(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -905,135 +951,88 @@ fun DayPlanEditDialog(
                                         shape = RoundedCornerShape(12.dp),
                                         border = if (isBeingDragged) BorderStroke(1.dp, GlowBlue.copy(alpha = 0.5f)) else null
                                     ) {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                                                Icon(Icons.Default.LocationOn, contentDescription = null, tint = GlowBlue, modifier = Modifier.size(16.dp))
-                                                Spacer(modifier = Modifier.width(12.dp))
-                                                Text(text = loc, color = Color.White, fontSize = 14.sp)
-                                            }
-                                            
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                IconButton(onClick = { locations = locations.filterIndexed { i, _ -> i != index } }, modifier = Modifier.size(32.dp)) {
-                                                    Icon(Icons.Default.Delete, contentDescription = "Remove", tint = Color.Red.copy(alpha = 0.6f), modifier = Modifier.size(18.dp))
-                                                }
+                                        EditLocationListItem(
+                                            text = loc,
+                                            onRemove = { locations = locations.filterIndexed { i, _ -> i != index } },
+                                            onDragStart = {
+                                                draggedIndex = index
+                                                targetIndex = index
+                                                dragYOffset = 0f
+                                            },
+                                            onDrag = { dragAmount ->
+                                                dragYOffset += dragAmount
                                                 
-                                                Icon(
-                                                    imageVector = Icons.Default.DragHandle,
-                                                    contentDescription = "Reorder",
-                                                    tint = Color.White.copy(alpha = 0.5f),
-                                                    modifier = Modifier
-                                                        .size(40.dp)
-                                                        .padding(8.dp)
-                                                        .pointerInput(index) {
-                                                            detectDragGestures(
-                                                                onDragStart = {
-                                                                    draggedIndex = index
-                                                                    targetIndex = index
-                                                                    dragYOffset = 0f
-                                                                },
-                                                                onDrag = { change, dragAmount ->
-                                                                    change.consume()
-                                                                    dragYOffset += dragAmount.y
-                                                                    
-                                                                    val currentY = (slotPositions[index] ?: 0f) + dragYOffset + (slotHeights[index] ?: 0) / 2f
-                                                                    
-                                                                    var bestTarget = targetIndex
-                                                                    var minDistance = Float.MAX_VALUE
-                                                                    
-                                                                    slotPositions.forEach { (i, pos) ->
-                                                                        val height = slotHeights[i] ?: 0
-                                                                        val center = pos + height / 2f
-                                                                        val distance = abs(center - currentY)
-                                                                        if (distance < minDistance) {
-                                                                            minDistance = distance
-                                                                            bestTarget = i
-                                                                        }
-                                                                    }
-                                                                    targetIndex = bestTarget
-                                                                },
-                                                                onDragEnd = {
-                                                                    if (draggedIndex != null && targetIndex != null && draggedIndex != targetIndex) {
-                                                                        val list = locations.toMutableList()
-                                                                        val item = list.removeAt(draggedIndex!!)
-                                                                        list.add(targetIndex!!, item)
-                                                                        locations = list
-                                                                    }
-                                                                    draggedIndex = null
-                                                                    targetIndex = null
-                                                                    dragYOffset = 0f
-                                                                },
-                                                                onDragCancel = {
-                                                                    draggedIndex = null
-                                                                    targetIndex = null
-                                                                    dragYOffset = 0f
-                                                                }
-                                                            )
-                                                        }
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(16.dp))
-                        }
-
-                        // Add New Location
-                        Box {
-                            OutlinedTextField(
-                                value = newLocationQuery,
-                                onValueChange = { 
-                                    newLocationQuery = it
-                                    viewModel.onSearchQueryChanged(it)
-                                    showSuggestions = it.isNotBlank()
-                                },
-                                label = { Text("Add Location") },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = Color.White,
-                                    unfocusedTextColor = Color.White,
-                                    focusedBorderColor = GlowBlue
-                                ),
-                                leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) }
-                            )
-
-                            if (showSuggestions && suggestions.isNotEmpty()) {
-                                Surface(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .heightIn(max = 200.dp)
-                                        .padding(top = 64.dp), // Adjust to appear below textfield
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = Color(0xFF222222),
-                                    border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.1f)),
-                                    tonalElevation = 8.dp
-                                ) {
-                                    LazyColumn {
-                                        items(suggestions) { suggestion ->
-                                            ListItem(
-                                                headlineContent = { Text(suggestion.name, color = Color.White, fontSize = 14.sp) },
-                                                supportingContent = { Text(suggestion.descriptionText ?: "", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp) },
-                                                modifier = Modifier.clickable {
-                                                    viewModel.selectSuggestion(suggestion) { selectedName ->
-                                                        if (!locations.contains(selectedName)) {
-                                                            locations = locations + selectedName
-                                                        }
-                                                        newLocationQuery = ""
-                                                        showSuggestions = false
+                                                val currentY = (slotPositions[index] ?: 0f) + dragYOffset + (slotHeights[index] ?: 0) / 2f
+                                                
+                                                var bestTarget = targetIndex
+                                                var minDistance = Float.MAX_VALUE
+                                                
+                                                slotPositions.forEach { (i, pos) ->
+                                                    val height = slotHeights[i] ?: 0
+                                                    val center = pos + height / 2f
+                                                    val distance = abs(center - currentY)
+                                                    if (distance < minDistance) {
+                                                        minDistance = distance
+                                                        bestTarget = i
                                                     }
-                                                },
-                                                colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-                                            )
-                                        }
+                                                }
+                                                targetIndex = bestTarget
+                                            },
+                                            onDragEnd = {
+                                                if (draggedIndex != null && targetIndex != null && draggedIndex != targetIndex) {
+                                                    val list = locations.toMutableList()
+                                                    val item = list.removeAt(draggedIndex!!)
+                                                    list.add(targetIndex!!, item)
+                                                    locations = list
+                                                }
+                                                draggedIndex = null
+                                                targetIndex = null
+                                                dragYOffset = 0f
+                                            }
+                                        )
                                     }
                                 }
                             }
+                        }
+                        
+                        EditAddressField(
+                            label = "Add Location",
+                            value = null,
+                            isActive = activeSearchField == "locations",
+                            onActivate = { activeSearchField = "locations" },
+                            onValueChange = { viewModel.onSearchQueryChanged(it) },
+                            onRemove = {},
+                            suggestions = suggestions,
+                            onSuggestionSelect = { if (!locations.contains(it)) locations = locations + it; activeSearchField = null }
+                        )
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // Hotel (Every Day)
+                        EditAddressField(
+                            label = "Hotel",
+                            value = hotel,
+                            isActive = activeSearchField == "hotel",
+                            onActivate = { activeSearchField = "hotel" },
+                            onValueChange = { viewModel.onSearchQueryChanged(it) },
+                            onRemove = { hotel = null },
+                            suggestions = suggestions,
+                            onSuggestionSelect = { hotel = it; activeSearchField = null }
+                        )
+
+                        // End Location (Last Day Only)
+                        if (isLastDay) {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            EditAddressField(
+                                label = "End Destination",
+                                value = endLocation,
+                                isActive = activeSearchField == "end",
+                                onActivate = { activeSearchField = "end" },
+                                onValueChange = { viewModel.onSearchQueryChanged(it) },
+                                onRemove = { endLocation = null },
+                                suggestions = suggestions,
+                                onSuggestionSelect = { endLocation = it; activeSearchField = null }
+                            )
                         }
 
                         Spacer(modifier = Modifier.height(24.dp))
@@ -1042,7 +1041,7 @@ fun DayPlanEditDialog(
                             value = description,
                             onValueChange = { description = it },
                             label = { Text("Daily Notes") },
-                            modifier = Modifier.fillMaxWidth().weight(1f),
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedTextColor = Color.White,
                                 unfocusedTextColor = Color.White,
@@ -1057,7 +1056,14 @@ fun DayPlanEditDialog(
                 Button(
                     onClick = { 
                         if (isEditing) {
-                            onSave(dayPlan.copy(locations = locations, description = description)) 
+                            onSave(dayPlan.copy(
+                                locations = locations, 
+                                description = description,
+                                hotel = hotel,
+                                startLocation = startLocation,
+                                endLocation = endLocation
+                            )) 
+                            isEditing = false
                         } else {
                             isEditing = true
                         }
@@ -1071,6 +1077,173 @@ fun DayPlanEditDialog(
                         color = Color.Black,
                         fontWeight = FontWeight.Bold
                     )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ViewLocationItem(label: String?, text: String, onLocationClick: (String) -> Unit) {
+    Surface(
+        onClick = { onLocationClick(text) },
+        color = Color.White.copy(alpha = 0.05f),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.1f))
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.LocationOn, contentDescription = null, tint = GlowBlue, modifier = Modifier.size(20.dp))
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                if (label != null) {
+                    Text(text = label, color = GlowBlue, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+                Text(text = text, color = Color.White, fontSize = 15.sp)
+            }
+        }
+    }
+}
+
+@Composable
+fun EditLocationListItem(
+    text: String, 
+    onRemove: () -> Unit,
+    onDragStart: () -> Unit,
+    onDrag: (Float) -> Unit,
+    onDragEnd: () -> Unit
+) {
+    Surface(
+        color = Color.White.copy(alpha = 0.05f),
+        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.1f))
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.LocationOn, contentDescription = null, tint = GlowBlue, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(text = text, color = Color.White, fontSize = 14.sp)
+            }
+            
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Default.Delete, contentDescription = "Remove", tint = Color.Red.copy(alpha = 0.6f), modifier = Modifier.size(18.dp))
+                }
+                
+                Icon(
+                    imageVector = Icons.Default.DragHandle,
+                    contentDescription = "Reorder",
+                    tint = Color.White.copy(alpha = 0.5f),
+                    modifier = Modifier
+                        .size(40.dp)
+                        .padding(8.dp)
+                        .pointerInput(Unit) {
+                            detectDragGestures(
+                                onDragStart = { onDragStart() },
+                                onDrag = { change, dragAmount ->
+                                    change.consume()
+                                    onDrag(dragAmount.y)
+                                },
+                                onDragEnd = { onDragEnd() },
+                                onDragCancel = { onDragEnd() }
+                            )
+                        }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun EditAddressField(
+    label: String,
+    value: String?,
+    isActive: Boolean,
+    onActivate: () -> Unit,
+    onValueChange: (String) -> Unit,
+    onRemove: () -> Unit,
+    suggestions: List<SearchSuggestion>,
+    onSuggestionSelect: (String) -> Unit
+) {
+    if (value != null) {
+        Surface(
+            color = Color.White.copy(alpha = 0.1f),
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            border = BorderStroke(1.dp, GlowBlue.copy(alpha = 0.3f))
+        ) {
+            Row(
+                modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.LocationOn, contentDescription = null, tint = GlowBlue, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(text = label, color = GlowBlue, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text(text = value, color = Color.White, fontSize = 14.sp)
+                    }
+                }
+                IconButton(onClick = onRemove) {
+                    Icon(Icons.Default.Delete, contentDescription = "Remove", tint = Color.Red.copy(alpha = 0.6f), modifier = Modifier.size(18.dp))
+                }
+            }
+        }
+    } else {
+        var query by remember { mutableStateOf("") }
+        Box {
+            OutlinedTextField(
+                value = query,
+                onValueChange = { 
+                    query = it
+                    onValueChange(it)
+                },
+                label = { Text(label) },
+                modifier = Modifier.fillMaxWidth().onFocusChanged { if (it.isFocused) onActivate() },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    focusedBorderColor = GlowBlue
+                ),
+                leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) }
+            )
+
+            if (isActive && query.isNotBlank() && suggestions.isNotEmpty()) {
+                Popup(
+                    alignment = Alignment.BottomStart,
+                    offset = IntOffset(0, 10),
+                    properties = PopupProperties(dismissOnClickOutside = true)
+                ) {
+                    Surface(
+                        modifier = Modifier.width(300.dp).heightIn(max = 200.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFF222222),
+                        border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.1f)),
+                        tonalElevation = 8.dp
+                    ) {
+                        LazyColumn {
+                            items(suggestions) { suggestion ->
+                                ListItem(
+                                    headlineContent = { Text(suggestion.name, color = Color.White, fontSize = 14.sp) },
+                                    supportingContent = { Text(suggestion.descriptionText ?: "", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp) },
+                                    modifier = Modifier.clickable {
+                                        onSuggestionSelect(suggestion.name)
+                                        query = ""
+                                    },
+                                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
