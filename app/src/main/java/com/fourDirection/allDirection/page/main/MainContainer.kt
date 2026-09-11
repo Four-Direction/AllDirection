@@ -1,7 +1,14 @@
 package com.fourDirection.allDirection.page.main
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -13,10 +20,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.fourDirection.allDirection.page.main.GroupChatPage
 import com.fourDirection.allDirection.page.map.ExplorePage
 import com.fourDirection.allDirection.page.tinyApps.CurrencyConverterPage
@@ -57,6 +69,7 @@ fun MainContainer(
     var shouldFocusExploreSearch by remember { mutableStateOf(false) }
     var isRoutingActive by remember { mutableStateOf(false) }
     var plannerSubTab by remember { mutableStateOf(0) } // 0 for Map, 1 for Calendar
+    var isPlannerCreationMode by remember { mutableStateOf(false) }
     var pendingLocationSearch by remember { mutableStateOf<String?>(null) }
     
     val items = listOf(
@@ -71,7 +84,7 @@ fun MainContainer(
     val hazeState = remember { HazeState() }
 
     // Handle system back button
-    BackHandler(enabled = selectedItem != 0 || isCurrencyConverterVisible || isTipCalculatorVisible || isEmergencyInfoVisible || isBudgetTrackerVisible || isConnectionsVisible || isAccountVisible || selectedGroup != null) {
+    BackHandler(enabled = selectedItem != 0 || isCurrencyConverterVisible || isTipCalculatorVisible || isEmergencyInfoVisible || isBudgetTrackerVisible || isConnectionsVisible || isAccountVisible || selectedGroup != null || isPlannerCreationMode) {
         if (isCurrencyConverterVisible) {
             isCurrencyConverterVisible = false
         } else if (isTipCalculatorVisible) {
@@ -86,6 +99,8 @@ fun MainContainer(
             isAccountVisible = false
         } else if (selectedGroup != null) {
             selectedGroup = null
+        } else if (isPlannerCreationMode) {
+            isPlannerCreationMode = false
         } else {
             selectedItem = 0
         }
@@ -200,34 +215,89 @@ fun MainContainer(
                                 onLocationClick = { location ->
                                     pendingLocationSearch = location
                                     plannerSubTab = 0
-                                }
+                                },
+                                isCreationMode = isPlannerCreationMode,
+                                onCreationModeChange = { isPlannerCreationMode = it }
                             )
                         }
                         
                         // Top Switcher Docker
                         if (!isRoutingActive) {
-                            Surface(
+                            var mapTabSize by remember { mutableStateOf(IntSize.Zero) }
+                            var calendarTabSize by remember { mutableStateOf(IntSize.Zero) }
+                            val density = LocalDensity.current
+                            
+                            val springSpec = spring<Float>(
+                                dampingRatio = 0.8f,
+                                stiffness = 400f
+                            )
+                            
+                            val indicatorOffset by animateFloatAsState(
+                                targetValue = if (plannerSubTab == 0) 0f else with(density) { mapTabSize.width.toDp().toPx() },
+                                animationSpec = springSpec,
+                                label = "indicatorOffset"
+                            )
+
+                            val switcherTopPadding by animateDpAsState(
+                                targetValue = if (plannerSubTab == 1 && isPlannerCreationMode) 0.dp else 130.dp,
+                                label = "switcherTopPadding"
+                            )
+
+                            val switcherAlpha by animateFloatAsState(
+                                targetValue = if (plannerSubTab == 1 && isPlannerCreationMode) 0f else 1f,
+                                label = "switcherAlpha"
+                            )
+
+                            Box(
                                 modifier = Modifier
-                                    .align(Alignment.TopCenter)
-                                    .padding(top = 80.dp)
-                                    .clip(CircleShape),
-                                color = Color.Black.copy(alpha = 0.6f),
-                                border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.2f))
+                                    .fillMaxSize()
+                                    .zIndex(1f),
+                                contentAlignment = Alignment.TopCenter
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(4.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                Surface(
+                                    modifier = Modifier
+                                        .graphicsLayer { alpha = switcherAlpha }
+                                        .padding(top = switcherTopPadding)
+                                        .clip(CircleShape),
+                                    color = Color.Black.copy(alpha = 0.6f),
+                                    border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.2f))
                                 ) {
-                                    SubTabItem(
-                                        label = "Map",
-                                        isSelected = plannerSubTab == 0,
-                                        onClick = { plannerSubTab = 0 }
-                                    )
-                                    SubTabItem(
-                                        label = "Calendar",
-                                        isSelected = plannerSubTab == 1,
-                                        onClick = { plannerSubTab = 1 }
-                                    )
+                                    Box(modifier = Modifier.padding(4.dp)) {
+                                        // Background Indicator - only rendered when sizes are known to avoid jitter
+                                        if (mapTabSize.width > 0 && calendarTabSize.width > 0) {
+                                            val currentWidth = if (plannerSubTab == 0) mapTabSize.width else calendarTabSize.width
+                                            val indicatorWidth by animateFloatAsState(
+                                                targetValue = with(density) { currentWidth.toDp().toPx() },
+                                                animationSpec = springSpec,
+                                                label = "indicatorWidth"
+                                            )
+
+                                            Box(
+                                                modifier = Modifier
+                                                    .offset(x = with(density) { indicatorOffset.toDp() })
+                                                    .size(
+                                                        width = with(density) { indicatorWidth.toDp() },
+                                                        height = 36.dp
+                                                    )
+                                                    .background(GlowBlue, CircleShape)
+                                            )
+                                        }
+
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            SubTabItem(
+                                                label = "Map",
+                                                isSelected = plannerSubTab == 0,
+                                                onClick = { plannerSubTab = 0 },
+                                                modifier = Modifier.onGloballyPositioned { mapTabSize = it.size }
+                                            )
+                                            SubTabItem(
+                                                label = "Calendar",
+                                                isSelected = plannerSubTab == 1,
+                                                onClick = { plannerSubTab = 1 },
+                                                modifier = Modifier.onGloballyPositioned { calendarTabSize = it.size }
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -292,13 +362,20 @@ fun MainContainer(
 fun SubTabItem(
     label: String,
     isSelected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
+    val textColor by animateColorAsState(
+        targetValue = if (isSelected) Color.Black else Color.White.copy(alpha = 0.7f),
+        animationSpec = tween(durationMillis = 300),
+        label = "textColor"
+    )
+
     Surface(
         onClick = onClick,
-        color = if (isSelected) GlowBlue else Color.Transparent,
+        color = Color.Transparent,
         shape = CircleShape,
-        modifier = Modifier.height(36.dp)
+        modifier = modifier.height(36.dp)
     ) {
         Box(
             modifier = Modifier.padding(horizontal = 16.dp),
@@ -306,7 +383,7 @@ fun SubTabItem(
         ) {
             Text(
                 text = label,
-                color = if (isSelected) Color.Black else Color.White.copy(alpha = 0.7f),
+                color = textColor,
                 fontSize = 13.sp,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
             )

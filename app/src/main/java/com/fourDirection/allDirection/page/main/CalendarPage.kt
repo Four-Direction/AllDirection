@@ -2,6 +2,7 @@ package com.fourDirection.allDirection.page.main
 
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -80,7 +81,9 @@ import kotlin.math.abs
 @Composable
 fun CalendarPage(
     viewModel: CalendarViewModel = viewModel(),
-    onLocationClick: (String) -> Unit = {}
+    onLocationClick: (String) -> Unit = {},
+    isCreationMode: Boolean = false,
+    onCreationModeChange: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
     val accessToken = "pk.eyJ1IjoiamFuZGRpIiwiYSI6ImNtdG9qYmx1ejB1cTEyd29majMxYzRvenMifQ.MHg_MphmkzDyLjIYLdLnmQ"
@@ -96,7 +99,6 @@ fun CalendarPage(
     val selectedTrip = remember(trips, selectedTripId) {
         trips.find { it.id == selectedTripId }
     }
-    var isCreationMode by remember { mutableStateOf(false) }
     val isLoading by viewModel.isLoading.collectAsState()
     var editingDayPlan by remember { mutableStateOf<DayPlan?>(null) }
 
@@ -108,6 +110,11 @@ fun CalendarPage(
         }
     }
 
+    val calendarTopPadding by animateDpAsState(
+        targetValue = if (isCreationMode) 5.dp else 190.dp,
+        label = "calendarTopPadding"
+    )
+
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = Color.Black
@@ -117,6 +124,7 @@ fun CalendarPage(
                 modifier = Modifier
                     .fillMaxSize()
                     .statusBarsPadding()
+                    .padding(top = calendarTopPadding)
             ) {
                 // --- HEADER ---
                 AnimatedVisibility(
@@ -243,7 +251,7 @@ fun CalendarPage(
                         .padding(end = 24.dp, bottom = 120.dp)
                 ) {
                     ExtendedFloatingActionButton(
-                        onClick = { isCreationMode = true },
+                        onClick = { onCreationModeChange(true) },
                         containerColor = GlowBlue,
                         contentColor = Color.Black,
                         icon = { Icon(Icons.Default.Add, contentDescription = null) },
@@ -315,7 +323,7 @@ fun CalendarPage(
                         ) {
                             OutlinedButton(
                                 onClick = { 
-                                    isCreationMode = false
+                                    onCreationModeChange(false)
                                     rangeStart = null
                                     rangeEnd = null
                                 },
@@ -337,7 +345,7 @@ fun CalendarPage(
                                         )
                                         viewModel.saveTrip(newTrip)
                                         selectedTripId = newTrip.id
-                                        isCreationMode = false
+                                        onCreationModeChange(false)
                                         rangeStart = null
                                         rangeEnd = null
                                     }

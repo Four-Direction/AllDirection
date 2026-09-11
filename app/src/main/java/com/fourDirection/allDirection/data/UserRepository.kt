@@ -565,7 +565,11 @@ class UserRepository {
                     exchangeCurrency = doc.getString("exchangeCurrency") ?: "USD",
                     isLocalTrip = doc.getBoolean("isLocalTrip") ?: false,
                     isGroup = doc.getBoolean("isGroup") ?: false,
-                    groupType = GroupBudgetType.valueOf(doc.getString("groupType") ?: "INDIVIDUAL"),
+                    groupType = when (doc.getString("groupType")) {
+                        "SAME_BUDGET", "EQUAL_SPLIT" -> GroupBudgetType.SAME_BUDGET
+                        "DIFFERENT_BUDGET", "CUSTOM_SPLIT" -> GroupBudgetType.DIFFERENT_BUDGET
+                        else -> GroupBudgetType.INDIVIDUAL
+                    },
                     individualBudgets = individualBudgets,
                     expenses = expenses,
                     customCategories = customCats

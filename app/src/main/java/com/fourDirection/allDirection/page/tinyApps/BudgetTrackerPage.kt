@@ -164,7 +164,7 @@ fun BudgetSelectionView(
             verticalArrangement = Arrangement.Center
         ) {
             Spacer(modifier = Modifier.weight(0.4f))
-            
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -184,7 +184,7 @@ fun BudgetSelectionView(
                     onClick = onTrackerClick
                 )
             }
-            
+
             Spacer(modifier = Modifier.weight(0.6f))
         }
     }
@@ -198,7 +198,7 @@ fun BudgetButton(
     onClick: () -> Unit
 ) {
     val lightBlue = Color(0xFF81D4FA)
-    
+
     Surface(
         onClick = onClick,
         modifier = modifier.height(80.dp),
