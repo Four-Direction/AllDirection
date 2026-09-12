@@ -300,13 +300,14 @@ fun MainContainer(
 fun SubTabItem(
     label: String,
     isSelected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Surface(
         onClick = onClick,
         color = if (isSelected) GlowBlue else Color.Transparent,
         shape = CircleShape,
-        modifier = Modifier.height(36.dp)
+        modifier = modifier.height(36.dp)
     ) {
         Box(
             modifier = Modifier.padding(horizontal = 16.dp),

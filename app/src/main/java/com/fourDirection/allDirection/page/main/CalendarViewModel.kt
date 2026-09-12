@@ -11,6 +11,7 @@ import com.mapbox.search.*
 import com.mapbox.search.result.SearchResult
 import com.mapbox.search.result.SearchSuggestion
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Filter
 import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -112,8 +113,11 @@ class CalendarViewModel : ViewModel() {
 
     private fun startTripsListener(uid: String) {
         tripsListener?.remove()
-        tripsListener = db.collection("users").document(uid)
-            .collection("trips")
+        tripsListener = db.collection("trips")
+            .where(Filter.or(
+                Filter.equalTo("ownerUid", uid),
+                Filter.arrayContains("collaboratorUids", uid)
+            ))
             .addSnapshotListener { snapshot, e ->
                 if (e != null) {
                     Log.e("CalendarViewModel", "Error listening to trips", e)
@@ -146,7 +150,16 @@ class CalendarViewModel : ViewModel() {
                         )
                     }.mapKeys { LocalDate.parse(it.key, dateFormatter) }
 
-                    Trip(id, name, startDate, endDate, dayPlans)
+                    Trip(
+                        id = id, 
+                        name = name, 
+                        startDate = startDate, 
+                        endDate = endDate, 
+                        dayPlans = dayPlans,
+                        ownerUid = doc.getString("ownerUid"),
+                        isCollaborative = doc.getBoolean("isCollaborative") ?: false,
+                        collaboratorUids = doc.get("collaboratorUids") as? List<String> ?: emptyList()
+                    )
                 } ?: emptyList()
 
                 _trips.value = loadedTrips
@@ -185,6 +198,28 @@ class CalendarViewModel : ViewModel() {
                 userRepository.deleteTrip(uid, tripId)
             } catch (e: Exception) {
                 _errorEvents.emit("Failed to delete trip: ${e.message}")
+            }
+        }
+    }
+
+    fun leaveTrip(tripId: String) {
+        val uid = auth.currentUser?.uid ?: return
+        viewModelScope.launch {
+            try {
+                userRepository.leaveTrip(tripId, uid)
+            } catch (e: Exception) {
+                _errorEvents.emit("Failed to leave trip: ${e.message}")
+            }
+        }
+    }
+
+    fun joinTrip(tripId: String) {
+        val uid = auth.currentUser?.uid ?: return
+        viewModelScope.launch {
+            try {
+                userRepository.joinTrip(tripId, uid)
+            } catch (e: Exception) {
+                _errorEvents.emit("Failed to join trip: ${e.message}")
             }
         }
     }

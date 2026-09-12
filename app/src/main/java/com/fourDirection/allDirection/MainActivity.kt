@@ -2,6 +2,7 @@ package com.fourDirection.allDirection
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -90,7 +91,11 @@ class MainActivity : ComponentActivity() {
                                 // Ensure name_lowercase exists for search
                                 if (userData["name_lowercase"] == null && userName != "User") {
                                     lifecycleScope.launch {
-                                        userRepository.saveUserToFirestore(authManager.currentUser!!, userName, userPhotoUrl)
+                                        try {
+                                            userRepository.saveUserToFirestore(authManager.currentUser!!, userName, userPhotoUrl)
+                                        } catch (e: Exception) {
+                                            Log.e("MainActivity", "Error auto-saving user data", e)
+                                        }
                                     }
                                 }
                                 

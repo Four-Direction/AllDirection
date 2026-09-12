@@ -7,11 +7,13 @@ import android.util.Log
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Filter
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.tasks.await
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.util.Locale
 import java.util.UUID
 
 class UserRepository {
@@ -119,7 +121,7 @@ class UserRepository {
         try {
             db.collection("users").document(uid).update("lastLogin", Timestamp.now()).await()
         } catch (e: Exception) {
-            // Log error
+            Log.e("UserRepository", "Error updating last login for $uid", e)
         }
     }
 
@@ -145,11 +147,13 @@ class UserRepository {
                 "name" to trip.name,
                 "startDate" to trip.startDate.format(dateFormatter),
                 "endDate" to trip.endDate.format(dateFormatter),
-                "dayPlans" to dayPlansData
+                "dayPlans" to dayPlansData,
+                "ownerUid" to (trip.ownerUid ?: uid),
+                "isCollaborative" to trip.isCollaborative,
+                "collaboratorUids" to trip.collaboratorUids
             )
 
-            db.collection("users").document(uid)
-                .collection("trips").document(trip.id)
+            db.collection("trips").document(trip.id)
                 .set(tripData).await()
         } catch (e: Exception) {
             Log.e("UserRepository", "Error saving trip", e)
@@ -157,13 +161,18 @@ class UserRepository {
         }
     }
 
-    @Suppress("unused")
     suspend fun getTrips(uid: String): List<Trip> {
         return try {
-            val snapshot = db.collection("users").document(uid)
-                .collection("trips").get().await()
+            val snapshot = db.collection("trips")
+                .where(Filter.or(
+                    Filter.equalTo("ownerUid", uid),
+                    Filter.arrayContains("collaboratorUids", uid)
+                ))
+                .get().await()
             
-            snapshot.documents.mapNotNull { doc ->
+            val uniqueDocs = snapshot.documents
+            
+            uniqueDocs.mapNotNull { doc ->
                 val id = doc.getString("id") ?: return@mapNotNull null
                 val name = doc.getString("name") ?: ""
                 val startStr = doc.getString("startDate") ?: return@mapNotNull null
@@ -189,7 +198,16 @@ class UserRepository {
                     )
                 }.mapKeys { LocalDate.parse(it.key, dateFormatter) }
 
-                Trip(id, name, startDate, endDate, dayPlans)
+                Trip(
+                    id = id, 
+                    name = name, 
+                    startDate = startDate, 
+                    endDate = endDate, 
+                    dayPlans = dayPlans,
+                    ownerUid = doc.getString("ownerUid"),
+                    isCollaborative = doc.getBoolean("isCollaborative") ?: false,
+                    collaboratorUids = (doc.get("collaboratorUids") as? List<*>)?.filterIsInstance<String>() ?: emptyList()
+                )
             }
         } catch (e: Exception) {
             Log.e("UserRepository", "Error getting trips", e)
@@ -198,9 +216,9 @@ class UserRepository {
     }
 
     suspend fun deleteTrip(uid: String, tripId: String) {
+        if (tripId.isBlank()) return
         try {
-            db.collection("users").document(uid)
-                .collection("trips").document(tripId)
+            db.collection("trips").document(tripId)
                 .delete().await()
         } catch (e: Exception) {
             Log.e("UserRepository", "Error deleting trip", e)
@@ -208,31 +226,108 @@ class UserRepository {
         }
     }
 
+    suspend fun leaveTrip(tripId: String, uid: String) {
+        if (tripId.isBlank()) return
+        try {
+            db.collection("trips").document(tripId)
+                .update("collaboratorUids", FieldValue.arrayRemove(uid))
+                .await()
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error leaving trip", e)
+            throw e
+        }
+    }
+
+    suspend fun joinTrip(tripId: String, uid: String) {
+        if (tripId.isBlank()) return
+        try {
+            db.collection("trips").document(tripId)
+                .update("collaboratorUids", FieldValue.arrayUnion(uid))
+                .await()
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error joining trip", e)
+            throw e
+        }
+    }
+
+    suspend fun getTripById(tripId: String): Trip? {
+        if (tripId.isBlank()) return null
+        return try {
+            val doc = db.collection("trips").document(tripId).get().await()
+            if (!doc.exists()) return null
+
+            val id = doc.getString("id") ?: return null
+            val name = doc.getString("name") ?: ""
+            val startStr = doc.getString("startDate") ?: return null
+            val endStr = doc.getString("endDate") ?: return null
+            
+            val startDate = LocalDate.parse(startStr, dateFormatter)
+            val endDate = LocalDate.parse(endStr, dateFormatter)
+            
+            @Suppress("UNCHECKED_CAST")
+            val dayPlansRaw = doc.get("dayPlans") as? Map<String, Map<String, Any>> ?: emptyMap()
+            
+            val dayPlans = dayPlansRaw.mapValues { (dateStr, data) ->
+                val eventsList = data["events"] as? List<*>
+                val locationsList = data["locations"] as? List<*> ?: data["location"]?.let { listOf(it) } ?: emptyList<Any>()
+                DayPlan(
+                    date = LocalDate.parse(dateStr, dateFormatter),
+                    description = data["description"] as? String ?: "",
+                    locations = locationsList.filterIsInstance<String>(),
+                    events = eventsList?.filterIsInstance<String>() ?: emptyList(),
+                    hotel = data["hotel"] as? String,
+                    startLocation = data["startLocation"] as? String,
+                    endLocation = data["endLocation"] as? String
+                )
+            }.mapKeys { LocalDate.parse(it.key, dateFormatter) }
+
+            Trip(
+                id = id, 
+                name = name, 
+                startDate = startDate, 
+                endDate = endDate, 
+                dayPlans = dayPlans,
+                ownerUid = doc.getString("ownerUid"),
+                isCollaborative = doc.getBoolean("isCollaborative") ?: false,
+                collaboratorUids = (doc.get("collaboratorUids") as? List<*>)?.filterIsInstance<String>() ?: emptyList()
+            )
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error getting trip by id", e)
+            null
+        }
+    }
+
     // --- Connections Management ---
 
     suspend fun sendConnectionRequest(fromUid: String, fromName: String, toUid: String) {
+        Log.d("UserRepository", "sendConnectionRequest: from=$fromUid, to=$toUid")
         try {
-            val batch = db.batch()
-            
-            val requestData = hashMapOf(
-                "fromUid" to fromUid,
-                "fromName" to fromName,
-                "sentAt" to Timestamp.now()
-            )
-            val incomingRef = db.collection("users").document(toUid)
-                .collection("connectionRequests").document(fromUid)
-            batch.set(incomingRef, requestData)
-            
-            val outgoingRef = db.collection("users").document(fromUid)
-                .collection("sentRequests").document(toUid)
-            batch.set(outgoingRef, mapOf(
+            // 1. Create outgoing request for the sender (Succeeds because it's their own collection)
+            val outgoingData = hashMapOf(
                 "toUid" to toUid,
                 "sentAt" to Timestamp.now()
-            ))
-            
-            batch.commit().await()
+            )
+            db.collection("users").document(fromUid)
+                .collection("sentRequests").document(toUid)
+                .set(outgoingData).await()
+            Log.d("UserRepository", "Created outgoing request record")
+
+            // 2. Create incoming request for the recipient (Might fail if rules are strict)
+            try {
+                val incomingData = hashMapOf(
+                    "fromUid" to fromUid,
+                    "fromName" to fromName,
+                    "sentAt" to Timestamp.now()
+                )
+                db.collection("users").document(toUid)
+                    .collection("connectionRequests").document(fromUid)
+                    .set(incomingData).await()
+                Log.d("UserRepository", "Created incoming request record")
+            } catch (e: Exception) {
+                Log.w("UserRepository", "Could not create incoming request document (permission denied). Request is one-sided.", e)
+            }
         } catch (e: Exception) {
-            Log.e("UserRepository", "Error sending request", e)
+            Log.e("UserRepository", "Error in sendConnectionRequest", e)
             throw e
         }
     }
@@ -249,70 +344,148 @@ class UserRepository {
     }
 
     suspend fun acceptConnectionRequest(uid: String, currentUserName: String, friendUid: String, friendName: String) {
+        Log.d("UserRepository", "acceptConnectionRequest: user=$uid, friend=$friendUid")
         try {
-            val batch = db.batch()
-            
-            val myConnRef = db.collection("users").document(uid)
+            // 1. Add to current user's friends list (Should succeed)
+            val myFriendData = hashMapOf(
+                "uid" to friendUid, 
+                "name" to friendName, 
+                "addedAt" to Timestamp.now()
+            )
+            db.collection("users").document(uid)
                 .collection("friends").document(friendUid)
-            batch.set(myConnRef, mapOf("uid" to friendUid, "name" to friendName, "addedAt" to Timestamp.now()))
+                .set(myFriendData).await()
+            Log.d("UserRepository", "Added to my friends list")
             
-            val theirConnRef = db.collection("users").document(friendUid)
-                .collection("friends").document(uid)
-            batch.set(theirConnRef, mapOf("uid" to uid, "name" to currentUserName, "addedAt" to Timestamp.now()))
-            
-            val reqRef = db.collection("users").document(uid)
+            // 2. Remove the incoming request from my collection (Should succeed)
+            db.collection("users").document(uid)
                 .collection("connectionRequests").document(friendUid)
-            batch.delete(reqRef)
+                .delete().await()
+            Log.d("UserRepository", "Deleted incoming request document")
+
+            // 3. Attempt to add to friend's friends list (Might fail)
+            try {
+                val theirFriendData = hashMapOf(
+                    "uid" to uid, 
+                    "name" to currentUserName, 
+                    "addedAt" to Timestamp.now()
+                )
+                db.collection("users").document(friendUid)
+                    .collection("friends").document(uid)
+                    .set(theirFriendData).await()
+                Log.d("UserRepository", "Added to friend's friends list")
+                
+                // 4. Attempt to remove the outgoing request from their collection
+                db.collection("users").document(friendUid)
+                    .collection("sentRequests").document(uid)
+                    .delete().await()
+                Log.d("UserRepository", "Deleted friend's sent request record")
+            } catch (e: Exception) {
+                Log.w("UserRepository", "Could not update friend's collection (permission denied).", e)
+            }
             
-            val theirSentRef = db.collection("users").document(friendUid)
-                .collection("sentRequests").document(uid)
-            batch.delete(theirSentRef)
+            // 5. Cleanup any mutual requests I sent
+            try {
+                db.collection("users").document(uid)
+                    .collection("sentRequests").document(friendUid)
+                    .delete().await()
+            } catch (_: Exception) {}
             
-            batch.commit().await()
         } catch (e: Exception) {
-            Log.e("UserRepository", "Error accepting request", e)
+            Log.e("UserRepository", "Error in acceptConnectionRequest", e)
             throw e
         }
     }
 
     suspend fun removeConnection(uid: String, friendUid: String) {
+        if (uid.isBlank() || friendUid.isBlank()) {
+            Log.e("UserRepository", "removeConnection: uid or friendUid is blank")
+            return
+        }
+        Log.d("UserRepository", "removeConnection: uid=$uid, friendUid=$friendUid")
+        
+        // 1. Delete from current user's friends list
         try {
-            val batch = db.batch()
-            batch.delete(db.collection("users").document(uid).collection("friends").document(friendUid))
-            batch.delete(db.collection("users").document(friendUid).collection("friends").document(uid))
-            batch.commit().await()
+            db.collection("users").document(uid)
+                .collection("friends").document(friendUid)
+                .delete().await()
+            Log.d("UserRepository", "Deleted from $uid's friends")
         } catch (e: Exception) {
-            throw e
+            Log.w("UserRepository", "Could not delete from own friends list (likely permission restricted): ${e.message}", e)
+        }
+        
+        // 2. Attempt to delete from the other user's friends list
+        try {
+            db.collection("users").document(friendUid)
+                .collection("friends").document(uid)
+                .delete().await()
+            Log.d("UserRepository", "Deleted from $friendUid's friends")
+        } catch (e: Exception) {
+            Log.w("UserRepository", "Could not delete from friend's list (likely permission restricted): ${e.message}", e)
         }
     }
 
     suspend fun searchUsersByName(query: String): List<Map<String, Any>> {
-        val lowercaseQuery = query.lowercase()
+        val trimmedQuery = query.trim()
+        if (trimmedQuery.isEmpty()) return emptyList()
+        
+        val lowercaseQuery = trimmedQuery.lowercase()
+        
         return try {
+            val results = mutableListOf<Map<String, Any>>()
+
+            // 1. Search name_lowercase
             val lowercaseSnapshot = db.collection("users")
                 .whereGreaterThanOrEqualTo("name_lowercase", lowercaseQuery)
                 .whereLessThanOrEqualTo("name_lowercase", lowercaseQuery + "\uf8ff")
-                .limit(10)
+                .limit(20)
                 .get().await()
             
-            val results = lowercaseSnapshot.documents.mapNotNull { it.data }.toMutableList()
+            lowercaseSnapshot.documents.forEach { doc ->
+                val data = doc.data?.toMutableMap() ?: return@forEach
+                data["uid"] = doc.id
+                results.add(data)
+            }
 
-            if (results.size < 5) {
-                val legacySnapshot = db.collection("users")
-                    .whereGreaterThanOrEqualTo("name", query)
-                    .whereLessThanOrEqualTo("name", query + "\uf8ff")
-                    .limit(10)
+            // 2. Fallback: Search name (Original Case)
+            if (results.size < 15) {
+                val nameSnapshot = db.collection("users")
+                    .whereGreaterThanOrEqualTo("name", trimmedQuery)
+                    .whereLessThanOrEqualTo("name", trimmedQuery + "\uf8ff")
+                    .limit(20)
                     .get().await()
                 
-                legacySnapshot.documents.forEach { doc ->
+                nameSnapshot.documents.forEach { doc ->
                     val data = doc.data
-                    if (data != null && results.none { it["uid"] == data["uid"] }) {
-                        results.add(data)
+                    if (data != null && results.none { it["uid"] == doc.id }) {
+                        val map = data.toMutableMap()
+                        map["uid"] = doc.id
+                        results.add(map)
+                    }
+                }
+            }
+
+            // 3. Fallback: Search name (Capitalized)
+            val capitalizedQuery = trimmedQuery.replaceFirstChar { if (it.isLowerCase()) it.titlecase(
+                Locale.getDefault()) else it.toString() }
+            if (results.size < 15 && capitalizedQuery != trimmedQuery) {
+                val capSnapshot = db.collection("users")
+                    .whereGreaterThanOrEqualTo("name", capitalizedQuery)
+                    .whereLessThanOrEqualTo("name", capitalizedQuery + "\uf8ff")
+                    .limit(20)
+                    .get().await()
+                
+                capSnapshot.documents.forEach { doc ->
+                    val data = doc.data
+                    if (data != null && results.none { it["uid"] == doc.id }) {
+                        val map = data.toMutableMap()
+                        map["uid"] = doc.id
+                        results.add(map)
                     }
                 }
             }
             
-            results.take(10)
+            results.distinctBy { it["uid"] }.take(20)
         } catch (e: Exception) {
             Log.e("UserRepository", "Error searching users", e)
             emptyList()
@@ -427,12 +600,32 @@ class UserRepository {
                 "senderUid" to senderUid,
                 "senderName" to senderName,
                 "text" to text,
-                "timestamp" to Timestamp.now()
+                "timestamp" to Timestamp.now(),
+                "type" to "text"
             )
             db.collection("groups").document(groupId)
                 .collection("messages").add(messageData).await()
         } catch (e: Exception) {
             Log.e("UserRepository", "Error sending message", e)
+            throw e
+        }
+    }
+
+    suspend fun sendTripMessage(groupId: String, senderUid: String, senderName: String, tripId: String, tripName: String) {
+        try {
+            val messageData = hashMapOf(
+                "senderUid" to senderUid,
+                "senderName" to senderName,
+                "text" to "Shared a trip: $tripName",
+                "timestamp" to Timestamp.now(),
+                "tripId" to tripId,
+                "tripName" to tripName,
+                "type" to "trip"
+            )
+            db.collection("groups").document(groupId)
+                .collection("messages").add(messageData).await()
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error sending trip message", e)
             throw e
         }
     }
@@ -466,6 +659,17 @@ class UserRepository {
                 .await()
         } catch (e: Exception) {
             Log.e("UserRepository", "Error updating group name", e)
+            throw e
+        }
+    }
+
+    suspend fun addMemberToGroup(groupId: String, memberUid: String) {
+        try {
+            db.collection("groups").document(groupId)
+                .update("memberUids", FieldValue.arrayUnion(memberUid))
+                .await()
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error adding member to group", e)
             throw e
         }
     }

@@ -85,22 +85,29 @@ class ConnectionsViewModel : ViewModel() {
 
     private fun startRealtimeListeners(uid: String) {
         Log.d("ConnectionsViewModel", "Starting real-time listeners for $uid")
-        
+
         // Clear old listeners if any
         stopRealtimeListeners()
 
         // 1. Listen for Connections
         connectionsListener = db.collection("users").document(uid)
             .collection("friends")
-            .orderBy("name")
             .addSnapshotListener { snapshot, e ->
                 if (e != null) {
                     Log.e("ConnectionsViewModel", "Connections listener error", e)
                     return@addSnapshotListener
                 }
-                _connections.value = snapshot?.documents?.mapNotNull { it.data } ?: emptyList()
+                val friendList = snapshot?.documents?.mapNotNull { doc ->
+                    val data = doc.data?.toMutableMap() ?: return@mapNotNull null
+                    data["uid"] = doc.id
+                    data["name"] = data["name"] as? String ?: "Unknown"
+                    data
+                } ?: emptyList()
+
+                Log.d("ConnectionsViewModel", "Fetched ${friendList.size} friends")
+                _connections.value = friendList.sortedBy { (it["name"] as? String ?: "").lowercase() }
             }
-            
+
         // 2. Listen for Incoming Requests
         requestsListener = db.collection("users").document(uid)
             .collection("connectionRequests")
@@ -109,7 +116,11 @@ class ConnectionsViewModel : ViewModel() {
                     Log.e("ConnectionsViewModel", "Requests listener error", e)
                     return@addSnapshotListener
                 }
-                _requests.value = snapshot?.documents?.mapNotNull { it.data } ?: emptyList()
+                _requests.value = snapshot?.documents?.mapNotNull { doc ->
+                    val data = doc.data?.toMutableMap() ?: return@mapNotNull null
+                    data["fromUid"] = doc.id
+                    data
+                } ?: emptyList()
             }
 
         // 3. Listen for Outgoing Requests (to show "Requested" status persistently)
@@ -162,7 +173,9 @@ class ConnectionsViewModel : ViewModel() {
             try {
                 userRepository.sendConnectionRequest(uid, _currentUserName.value, toUid)
                 _sentRequestUids.value = _sentRequestUids.value + toUid
-            } catch (e: Exception) { /* Log error */ }
+            } catch (e: Exception) {
+                Log.e("ConnectionsViewModel", "Error sending request", e)
+            }
         }
     }
 
@@ -171,16 +184,24 @@ class ConnectionsViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 userRepository.acceptConnectionRequest(uid, _currentUserName.value, friendUid, friendName)
-            } catch (e: Exception) { /* Log error */ }
+                Log.d("ConnectionsViewModel", "Request accepted from $friendUid")
+            } catch (e: Exception) {
+                Log.e("ConnectionsViewModel", "Error accepting request", e)
+            }
         }
     }
 
     fun removeConnection(friendUid: String) {
         val uid = currentUid ?: return
+        Log.d("ConnectionsViewModel", "removeConnection: friendUid=$friendUid")
         viewModelScope.launch {
             try {
                 userRepository.removeConnection(uid, friendUid)
-            } catch (e: Exception) { /* Log error */ }
+                Log.d("ConnectionsViewModel", "Successfully removed connection")
+                // No need to manually update state, the listener will handle it
+            } catch (e: Exception) {
+                Log.e("ConnectionsViewModel", "Error removing connection", e)
+            }
         }
     }
 }
@@ -297,7 +318,10 @@ fun ConnectionsPage(
                         requests.forEach { req ->
                             RequestItem(
                                 name = req["fromName"] as? String ?: "Unknown",
-                                onAccept = { viewModel.acceptRequest(req["fromUid"] as String, req["fromName"] as String) }
+                                onAccept = { 
+                                    viewModel.acceptRequest(req["fromUid"] as String, req["fromName"] as String)
+                                    Toast.makeText(context, "Connection accepted!", Toast.LENGTH_SHORT).show()
+                                }
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                         }

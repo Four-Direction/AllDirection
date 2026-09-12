@@ -44,6 +44,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -70,6 +71,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fourDirection.allDirection.data.DayPlan
 import com.fourDirection.allDirection.data.Trip
 import com.fourDirection.allDirection.ui.theme.GlowBlue
+import com.google.firebase.auth.FirebaseAuth
 import com.mapbox.search.result.SearchSuggestion
 import kotlinx.coroutines.flow.collectLatest
 import java.time.LocalDate
@@ -295,6 +297,7 @@ fun CalendarPage(
                         Spacer(modifier = Modifier.height(16.dp))
                         
                         var tripName by remember { mutableStateOf("") }
+                        var isCollaborative by remember { mutableStateOf(false) }
                         
                         OutlinedTextField(
                             value = tripName,
@@ -309,6 +312,24 @@ fun CalendarPage(
                             ),
                             singleLine = true
                         )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth().clickable { isCollaborative = !isCollaborative }
+                        ) {
+                            Checkbox(
+                                checked = isCollaborative,
+                                onCheckedChange = { isCollaborative = it },
+                                colors = CheckboxDefaults.colors(checkedColor = GlowBlue)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text("Collaborative", color = Color.White, fontSize = 14.sp)
+                                Text("Allow others to edit this plan", color = Color.White.copy(alpha = 0.5f), fontSize = 10.sp)
+                            }
+                        }
                         
                         Spacer(modifier = Modifier.height(16.dp))
                         
@@ -336,7 +357,8 @@ fun CalendarPage(
                                         val newTrip = Trip(
                                             name = tripName,
                                             startDate = rangeStart!!,
-                                            endDate = rangeEnd!!
+                                            endDate = rangeEnd!!,
+                                            isCollaborative = isCollaborative
                                         )
                                         viewModel.saveTrip(newTrip)
                                         selectedTripId = newTrip.id
@@ -369,6 +391,7 @@ fun CalendarPage(
             }
 
             // --- TRIP VIEW / EDITOR ---
+            val currentUid = remember<String?> { FirebaseAuth.getInstance().currentUser?.uid }
             AnimatedVisibility(
                 visible = selectedTrip != null,
                 modifier = Modifier.align(Alignment.BottomCenter),
@@ -378,6 +401,10 @@ fun CalendarPage(
                 if (selectedTrip != null) {
                     TripDetailView(
                         trip = selectedTrip,
+                        currentUid = currentUid,
+                        onToggleCollaborative = { isCollab ->
+                            viewModel.saveTrip(selectedTrip.copy(isCollaborative = isCollab))
+                        },
                         onDismiss = { selectedTripId = null },
                         onEditDay = { editingDayPlan = it },
                         onLocationClick = onLocationClick,
@@ -412,6 +439,10 @@ fun CalendarPage(
                         onDeleteTrip = {
                             viewModel.deleteTrip(selectedTrip.id)
                             selectedTripId = null
+                        },
+                        onLeaveTrip = {
+                            viewModel.leaveTrip(selectedTrip.id)
+                            selectedTripId = null
                         }
                     )
                 }
@@ -419,10 +450,12 @@ fun CalendarPage(
 
             // --- DAY PLAN EDIT DIALOG ---
             if (editingDayPlan != null && selectedTrip != null) {
+                val canEdit = (currentUid != null && selectedTrip.ownerUid == currentUid) || selectedTrip.isCollaborative
                 DayPlanEditDialog(
                     dayPlan = editingDayPlan!!,
                     trip = selectedTrip,
                     viewModel = viewModel,
+                    canEdit = canEdit,
                     onDismiss = { editingDayPlan = null },
                     onLocationClick = onLocationClick,
                     onSeeRoute = onSeeRoute,
@@ -656,16 +689,22 @@ fun CalendarCell(
 @Composable
 fun TripDetailView(
     trip: Trip,
+    currentUid: String?,
+    onToggleCollaborative: (Boolean) -> Unit,
     onDismiss: () -> Unit,
     onEditDay: (DayPlan) -> Unit,
     onLocationClick: (String) -> Unit = {},
     onSeeRoute: (DayPlan) -> Unit = {},
-    onDeleteTrip: () -> Unit
+    onDeleteTrip: () -> Unit,
+    onLeaveTrip: () -> Unit
 ) {
+    val isOwner = currentUid != null && trip.ownerUid == currentUid
+    val canEdit = isOwner || trip.isCollaborative
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .fillMaxHeight(0.45f), // Slightly lower to show more calendar
+            .fillMaxHeight(0.55f), 
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         color = Color(0xFF121212),
         tonalElevation = 8.dp,
@@ -680,7 +719,7 @@ fun TripDetailView(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = trip.name,
                         color = Color.White,
@@ -692,10 +731,42 @@ fun TripDetailView(
                         color = Color.White.copy(alpha = 0.6f),
                         fontSize = 10.sp
                     )
+                    
+                    if (isOwner) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.clickable { onToggleCollaborative(!trip.isCollaborative) }
+                        ) {
+                            Switch(
+                                checked = trip.isCollaborative,
+                                onCheckedChange = onToggleCollaborative,
+                                modifier = Modifier.scale(0.6f),
+                                colors = SwitchDefaults.colors(checkedThumbColor = GlowBlue)
+                            )
+                            Text(
+                                text = "Collaborative",
+                                color = if (trip.isCollaborative) GlowBlue else Color.White.copy(alpha = 0.4f),
+                                fontSize = 10.sp
+                            )
+                        }
+                    } else if (trip.isCollaborative) {
+                        Text(
+                            text = "Collaborative Plan",
+                            color = GlowBlue,
+                            fontSize = 10.sp,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
                 }
-                Row {
-                    IconButton(onClick = onDeleteTrip) {
-                        Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red.copy(alpha = 0.7f), modifier = Modifier.size(20.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (isOwner) {
+                        IconButton(onClick = onDeleteTrip) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red.copy(alpha = 0.7f), modifier = Modifier.size(20.dp))
+                        }
+                    } else {
+                        IconButton(onClick = onLeaveTrip) {
+                            Icon(Icons.Default.Delete, contentDescription = "Leave Plan", tint = Color.Red.copy(alpha = 0.7f), modifier = Modifier.size(20.dp))
+                        }
                     }
                     IconButton(onClick = onDismiss) {
                         Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White, modifier = Modifier.size(20.dp))
@@ -725,6 +796,7 @@ fun TripDetailView(
                     val dayPlan = trip.dayPlans[date] ?: DayPlan(date = date)
                     DayPlanCard(
                         dayPlan = dayPlan,
+                        canEdit = canEdit,
                         onEditClick = { onEditDay(dayPlan) },
                         onSeeRouteClick = { onSeeRoute(dayPlan) }
                     )
@@ -737,6 +809,7 @@ fun TripDetailView(
 @Composable
 fun DayPlanCard(
     dayPlan: DayPlan,
+    canEdit: Boolean,
     onEditClick: () -> Unit,
     onSeeRouteClick: () -> Unit
 ) {
@@ -819,17 +892,6 @@ fun DayPlanCard(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                if (dayPlan.locations.isNotEmpty() || dayPlan.hotel != null || dayPlan.startLocation != null || dayPlan.endLocation != null) {
-                    TextButton(
-                        onClick = onSeeRouteClick,
-                        modifier = Modifier.fillMaxWidth().height(32.dp),
-                        contentPadding = PaddingValues(0.dp)
-                    ) {
-                        Icon(Icons.Default.Directions, contentDescription = null, tint = GlowBlue, modifier = Modifier.size(12.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("See Route", color = GlowBlue, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
             }
         }
     }
@@ -840,6 +902,7 @@ fun DayPlanEditDialog(
     dayPlan: DayPlan,
     trip: Trip,
     viewModel: CalendarViewModel,
+    canEdit: Boolean,
     onDismiss: () -> Unit,
     onLocationClick: (String) -> Unit = {},
     onSeeRoute: (List<String>) -> Unit = {},
@@ -1139,30 +1202,32 @@ fun DayPlanEditDialog(
                     }
                 }
 
-                Button(
-                    onClick = { 
-                        if (isEditing) {
-                            onSave(dayPlan.copy(
-                                locations = locations, 
-                                description = description,
-                                hotel = hotel,
-                                startLocation = startLocation,
-                                endLocation = endLocation
-                            )) 
-                            isEditing = false
-                        } else {
-                            isEditing = true
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = GlowBlue),
-                    shape = MaterialTheme.shapes.medium
-                ) {
-                    Text(
-                        text = if (isEditing) "Save Details" else "Change Details",
-                        color = Color.Black,
-                        fontWeight = FontWeight.Bold
-                    )
+                if (canEdit) {
+                    Button(
+                        onClick = { 
+                            if (isEditing) {
+                                onSave(dayPlan.copy(
+                                    locations = locations, 
+                                    description = description,
+                                    hotel = hotel,
+                                    startLocation = startLocation,
+                                    endLocation = endLocation
+                                )) 
+                                isEditing = false
+                            } else {
+                                isEditing = true
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().height(56.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = GlowBlue),
+                        shape = MaterialTheme.shapes.medium
+                    ) {
+                        Text(
+                            text = if (isEditing) "Save Details" else "Change Details",
+                            color = Color.Black,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }

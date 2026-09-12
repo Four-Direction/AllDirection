@@ -1,5 +1,6 @@
 package com.fourDirection.allDirection.page.main
 
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -53,6 +54,15 @@ class SocialViewModel : ViewModel() {
     private val _connections = MutableStateFlow<List<Map<String, Any>>>(emptyList())
     val connections = _connections.asStateFlow()
 
+    private val _requests = MutableStateFlow<List<Map<String, Any>>>(emptyList())
+    val requests = _requests.asStateFlow()
+
+    private val _sentRequestUids = MutableStateFlow<Set<String>>(emptySet())
+    val sentRequestUids = _sentRequestUids.asStateFlow()
+
+    private val _searchResults = MutableStateFlow<List<Map<String, Any>>>(emptyList())
+    val searchResults = _searchResults.asStateFlow()
+
     private val _myGroups = MutableStateFlow<List<Map<String, Any>>>(emptyList())
     val myGroups = _myGroups.asStateFlow()
 
@@ -62,7 +72,11 @@ class SocialViewModel : ViewModel() {
     private val _isLoading = MutableStateFlow(false)
     val isLoading = _isLoading.asStateFlow()
 
+    private val _currentUserName = MutableStateFlow("User")
+    
     private var connectionsListener: ListenerRegistration? = null
+    private var requestsListener: ListenerRegistration? = null
+    private var sentRequestsListener: ListenerRegistration? = null
     private var groupsListener: ListenerRegistration? = null
     private var userListener: ListenerRegistration? = null
 
@@ -70,9 +84,13 @@ class SocialViewModel : ViewModel() {
         val uid = firebaseAuth.currentUser?.uid
         if (uid != null) {
             startRealtimeListeners(uid)
+            fetchCurrentUserName(uid)
         } else {
             stopRealtimeListeners()
             _connections.value = emptyList()
+            _requests.value = emptyList()
+            _sentRequestUids.value = emptySet()
+            _searchResults.value = emptyList()
             _myGroups.value = emptyList()
             _pinnedGroups.value = emptyList()
         }
@@ -84,30 +102,75 @@ class SocialViewModel : ViewModel() {
 
     private fun startRealtimeListeners(uid: String) {
         stopRealtimeListeners()
-        
-        // Listen for Connections
+
+        // 1. Listen for Connections
         connectionsListener = db.collection("users").document(uid)
             .collection("friends")
-            .orderBy("name")
-            .addSnapshotListener { snapshot, _ ->
-                _connections.value = snapshot?.documents?.mapNotNull { it.data } ?: emptyList()
+            .addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    Log.e("SocialViewModel", "Friends listener error", e)
+                    return@addSnapshotListener
+                }
+                val friendList = snapshot?.documents?.mapNotNull { doc ->
+                    val data = doc.data?.toMutableMap() ?: return@mapNotNull null
+                    data["uid"] = doc.id
+                    data["name"] = data["name"] as? String ?: "Unknown"
+                    data
+                } ?: emptyList()
+
+                Log.d("SocialViewModel", "Fetched ${friendList.size} friends")
+                _connections.value = friendList.sortedBy { (it["name"] as? String ?: "").lowercase() }
             }
-            
-        // Listen for Groups I am a member of
+
+        // 2. Listen for Incoming Requests
+        requestsListener = db.collection("users").document(uid)
+            .collection("connectionRequests")
+            .addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    Log.e("SocialViewModel", "Requests listener error", e)
+                    return@addSnapshotListener
+                }
+                _requests.value = snapshot?.documents?.mapNotNull { doc ->
+                    val data = doc.data?.toMutableMap() ?: return@mapNotNull null
+                    data["fromUid"] = doc.id // Ensure ID is mapped if missing
+                    data
+                } ?: emptyList()
+            }
+
+        // 3. Listen for Outgoing Requests
+        sentRequestsListener = db.collection("users").document(uid)
+            .collection("sentRequests")
+            .addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    Log.e("SocialViewModel", "Sent requests listener error", e)
+                    return@addSnapshotListener
+                }
+                _sentRequestUids.value = snapshot?.documents?.mapNotNull { it.id }?.toSet() ?: emptySet()
+            }
+
+        // 4. Listen for Groups I am a member of
         groupsListener = db.collection("groups")
             .whereArrayContains("memberUids", uid)
-            .addSnapshotListener { snapshot, _ ->
+            .addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    Log.e("SocialViewModel", "Groups listener error", e)
+                    return@addSnapshotListener
+                }
                 _myGroups.value = snapshot?.documents?.mapNotNull { doc ->
                     val data = doc.data?.toMutableMap() ?: return@mapNotNull null
-                    data["id"] = doc.id // Use Firestore document ID as the primary ID
+                    data["id"] = doc.id
                     data["groupName"] = data["name"] as? String ?: "Unnamed Group"
                     data
                 } ?: emptyList()
             }
 
-        // Listen for User Metadata (Pinned Groups)
+        // 5. Listen for User Metadata (Pinned Groups)
         userListener = db.collection("users").document(uid)
-            .addSnapshotListener { snapshot, _ ->
+            .addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    Log.e("SocialViewModel", "User metadata listener error", e)
+                    return@addSnapshotListener
+                }
                 @Suppress("UNCHECKED_CAST")
                 _pinnedGroups.value = snapshot?.get("pinnedGroups") as? List<String> ?: emptyList()
             }
@@ -115,17 +178,69 @@ class SocialViewModel : ViewModel() {
 
     private fun stopRealtimeListeners() {
         connectionsListener?.remove()
+        requestsListener?.remove()
+        sentRequestsListener?.remove()
         groupsListener?.remove()
         userListener?.remove()
         connectionsListener = null
+        requestsListener = null
+        sentRequestsListener = null
         groupsListener = null
         userListener = null
     }
 
-    override fun onCleared() {
-        auth.removeAuthStateListener(authStateListener)
-        stopRealtimeListeners()
-        super.onCleared()
+    private fun fetchCurrentUserName(uid: String) {
+        viewModelScope.launch {
+            _currentUserName.value = userRepository.getUserName(uid) ?: "User"
+        }
+    }
+
+    fun searchUsers(query: String) {
+        if (query.isBlank()) {
+            _searchResults.value = emptyList()
+            return
+        }
+        viewModelScope.launch {
+            _searchResults.value = userRepository.searchUsersByName(query)
+                .filter { it["uid"] != currentUid }
+        }
+    }
+
+    fun sendRequest(toUid: String) {
+        val uid = currentUid ?: return
+        viewModelScope.launch {
+            try {
+                userRepository.sendConnectionRequest(uid, _currentUserName.value, toUid)
+                Log.d("SocialViewModel", "Request sent successfully to $toUid")
+            } catch (e: Exception) {
+                Log.e("SocialViewModel", "Error sending request", e)
+            }
+        }
+    }
+
+    fun acceptRequest(friendUid: String, friendName: String) {
+        val uid = currentUid ?: return
+        viewModelScope.launch {
+            try {
+                userRepository.acceptConnectionRequest(uid, _currentUserName.value, friendUid, friendName)
+                Log.d("SocialViewModel", "Request accepted: $friendUid")
+            } catch (e: Exception) {
+                Log.e("SocialViewModel", "Error accepting request", e)
+            }
+        }
+    }
+
+    fun removeConnection(friendUid: String) {
+        val uid = currentUid ?: return
+        Log.d("SocialViewModel", "removeConnection: friendUid=$friendUid")
+        viewModelScope.launch {
+            try {
+                userRepository.removeConnection(uid, friendUid)
+                Log.d("SocialViewModel", "Connection removed successfully")
+            } catch (e: Exception) {
+                Log.e("SocialViewModel", "Error removing connection", e)
+            }
+        }
     }
 
     fun createGroup(name: String, selectedMembers: List<Map<String, String>>) {
@@ -135,7 +250,7 @@ class SocialViewModel : ViewModel() {
             try {
                 userRepository.createGroup(uid, name, selectedMembers)
             } catch (e: Exception) {
-                // Log or handle error
+                Log.e("SocialViewModel", "Error creating group", e)
             } finally {
                 _isLoading.value = false
             }
@@ -170,16 +285,20 @@ class SocialViewModel : ViewModel() {
     fun togglePinGroup(groupId: String) {
         val uid = currentUid ?: return
         val currentlyPinned = _pinnedGroups.value
-        
+
         viewModelScope.launch {
-            if (currentlyPinned.contains(groupId)) {
-                userRepository.unpinGroup(uid, groupId)
-            } else {
-                if (currentlyPinned.size >= 3) {
-                    // Could show toast here, but simple return for now
-                    return@launch
+            try {
+                if (currentlyPinned.contains(groupId)) {
+                    userRepository.unpinGroup(uid, groupId)
+                } else {
+                    if (currentlyPinned.size >= 3) {
+                        // Could show toast here, but simple return for now
+                        return@launch
+                    }
+                    userRepository.pinGroup(uid, groupId)
                 }
-                userRepository.pinGroup(uid, groupId)
+            } catch (e: Exception) {
+                Log.e("SocialViewModel", "Error toggling group pin", e)
             }
         }
     }
@@ -282,7 +401,7 @@ fun SocialPage(onGroupClick: (Map<String, Any>) -> Unit = {}) {
                 if (selectedTab == 0) {
                     GroupList(viewModel, onGroupClick)
                 } else {
-                    PlaceholderPage("Community Coming Soon")
+                    CommunityView(viewModel)
                 }
             }
 
@@ -308,6 +427,212 @@ fun SocialPage(onGroupClick: (Map<String, Any>) -> Unit = {}) {
             viewModel = viewModel,
             onDismiss = { showCreateGroupDialog = false }
         )
+    }
+}
+
+@Composable
+fun CommunityView(viewModel: SocialViewModel) {
+    val context = LocalContext.current
+    val connections by viewModel.connections.collectAsState()
+    val requests by viewModel.requests.collectAsState()
+    val searchResults by viewModel.searchResults.collectAsState()
+    val sentRequestUids by viewModel.sentRequestUids.collectAsState()
+    var searchQuery by remember { mutableStateOf("") }
+    var isSearching by remember { mutableStateOf(false) }
+    
+    var selectedConnection by remember { mutableStateOf<Map<String, Any>?>(null) }
+    var showOptionsDialog by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp)
+    ) {
+        // Search Toggle & Bar
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = if (isSearching) "Search Users" else "My Connections",
+                color = Color.White.copy(alpha = 0.6f),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
+            )
+            IconButton(onClick = { isSearching = !isSearching }) {
+                Icon(
+                    imageVector = if (isSearching) Icons.Default.Close else Icons.Default.Search,
+                    contentDescription = null,
+                    tint = GlowBlue
+                )
+            }
+        }
+
+        if (isSearching) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { 
+                    searchQuery = it
+                    viewModel.searchUsers(it)
+                },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Find travelers...", color = Color.White.copy(alpha = 0.4f)) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color.White.copy(alpha = 0.6f)) },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    focusedBorderColor = GlowBlue,
+                    unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
+                ),
+                shape = RoundedCornerShape(16.dp),
+                singleLine = true
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(searchResults) { user ->
+                    val uid = user["uid"] as String
+                    val isRequested = sentRequestUids.contains(uid)
+                    val isAlreadyFriend = connections.any { it["uid"] == uid }
+                    
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = Color.White.copy(alpha = 0.05f),
+                        shape = RoundedCornerShape(16.dp),
+                        border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.1f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(text = user["name"] as? String ?: "Unknown", color = Color.White)
+                            
+                            if (isAlreadyFriend) {
+                                Icon(Icons.Default.Check, contentDescription = null, tint = GlowBlue)
+                            } else if (isRequested) {
+                                Text("Requested", color = GlowBlue, fontSize = 12.sp)
+                            } else {
+                                Button(
+                                    onClick = { 
+                                        viewModel.sendRequest(uid)
+                                        Toast.makeText(context, "Connection request sent!", Toast.LENGTH_SHORT).show()
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = GlowBlue),
+                                    modifier = Modifier.height(32.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp)
+                                ) {
+                                    Text("Add", color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            // Pending Requests
+            if (requests.isNotEmpty()) {
+                Text("Requests", color = GlowBlue, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(8.dp))
+                requests.forEach { req ->
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        color = GlowBlue.copy(alpha = 0.1f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(text = req["fromName"] as? String ?: "Unknown", color = Color.White)
+                            Button(
+                                onClick = { 
+                                    viewModel.acceptRequest(req["fromUid"] as String, req["fromName"] as String)
+                                    Toast.makeText(context, "Connection accepted!", Toast.LENGTH_SHORT).show()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = GlowBlue),
+                                modifier = Modifier.height(28.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp)
+                            ) {
+                                Text("Accept", color = Color.Black, fontSize = 10.sp)
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
+            // Friends List
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (connections.isEmpty()) {
+                    item {
+                        Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
+                            Text("No connections yet.", color = Color.White.copy(alpha = 0.3f))
+                        }
+                    }
+                } else {
+                    items(connections) { friend ->
+                        Surface(
+                            onClick = { 
+                                selectedConnection = friend
+                                showOptionsDialog = true
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            color = Color.White.copy(alpha = 0.05f),
+                            shape = RoundedCornerShape(16.dp),
+                            border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.1f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier.size(40.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.1f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(text = (friend["name"] as? String ?: "U").take(1), color = Color.White)
+                                }
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Text(text = friend["name"] as? String ?: "Unknown", color = Color.White, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (showOptionsDialog && selectedConnection != null) {
+        Dialog(onDismissRequest = { showOptionsDialog = false }) {
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = Color(0xFF1A1A1A),
+                modifier = Modifier.fillMaxWidth().padding(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(text = selectedConnection!!["name"] as String, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Button(
+                        onClick = { 
+                            viewModel.removeConnection(selectedConnection!!["uid"] as String)
+                            Toast.makeText(context, "Connection removed", Toast.LENGTH_SHORT).show()
+                            showOptionsDialog = false
+                        },
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red.copy(alpha = 0.2f))
+                    ) {
+                        Text("Remove Connection", color = Color.Red)
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    TextButton(onClick = { showOptionsDialog = false }) {
+                        Text("Cancel", color = Color.White.copy(alpha = 0.6f))
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -595,8 +920,8 @@ fun CreateGroupDialog(
 
                 LazyColumn(modifier = Modifier.weight(1f)) {
                     items(connections) { connection ->
-                        val uid = connection["uid"] as String
-                        val name = connection["name"] as String
+                        val uid = connection["uid"] as? String ?: return@items
+                        val name = connection["name"] as? String ?: "Unknown"
                         val isSelected = selectedUids.contains(uid)
 
                         Surface(
@@ -630,8 +955,8 @@ fun CreateGroupDialog(
                 Button(
                     onClick = {
                         val members = connections
-                            .filter { selectedUids.contains(it["uid"] as String) }
-                            .map { mapOf("uid" to it["uid"] as String, "name" to it["name"] as String) }
+                            .filter { selectedUids.contains(it["uid"] as? String ?: "") }
+                            .map { mapOf("uid" to (it["uid"] as String), "name" to (it["name"] as? String ?: "Unknown")) }
                         viewModel.createGroup(groupName, members)
                         onDismiss()
                     },

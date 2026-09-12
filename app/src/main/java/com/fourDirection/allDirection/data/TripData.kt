@@ -8,7 +8,10 @@ data class Trip(
     val name: String,
     val startDate: LocalDate,
     val endDate: LocalDate,
-    val dayPlans: Map<LocalDate, DayPlan> = emptyMap()
+    val dayPlans: Map<LocalDate, DayPlan> = emptyMap(),
+    val ownerUid: String? = null,
+    val isCollaborative: Boolean = false,
+    val collaboratorUids: List<String> = emptyList()
 )
 
 data class DayPlan(
