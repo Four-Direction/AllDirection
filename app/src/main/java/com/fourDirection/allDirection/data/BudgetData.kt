@@ -60,5 +60,7 @@ data class BudgetPlan(
     val groupType: GroupBudgetType = GroupBudgetType.INDIVIDUAL,
     val individualBudgets: List<IndividualBudget> = emptyList(),
     val expenses: List<ExpenseItem> = emptyList(),
-    val customCategories: List<String> = emptyList()
+    val customCategories: List<String> = emptyList(),
+    val safetyBufferPercent: Int = 0, // NEW: 0 to 20%
+    val selectedTemplate: String? = null // NEW: e.g., "Backpacker"
 )

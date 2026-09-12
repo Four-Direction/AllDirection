@@ -1,6 +1,6 @@
 package com.fourDirection.allDirection.page.tinyApps
 
-import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -23,7 +23,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.fourDirection.allDirection.data.*
+import com.fourDirection.allDirection.ui.theme.GlowBlue
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import java.util.Locale
@@ -40,8 +42,6 @@ fun BudgetEditorPage(
     onDone: (BudgetPlan) -> Unit
 ) {
     val lightBlue = Color(0xFF81D4FA)
-    
-    // Use keys for remember to ensure state is reset when editing a different plan
     val planKey = remember(initialPlan?.id, newTrip?.id) { initialPlan?.id ?: newTrip?.id ?: "new" }
 
     // Plan Basic Info
@@ -51,14 +51,13 @@ fun BudgetEditorPage(
     val startDate = remember(planKey) { initialPlan?.startDate ?: newTrip?.startDate ?: LocalDate.now() }
     val endDate = remember(planKey) { initialPlan?.endDate ?: newTrip?.endDate ?: LocalDate.now().plusDays(1) }
     
-    // Section 1: Currency
+    // --- STATE VARIABLES ---
     var baseCurrency by remember(planKey) { mutableStateOf(initialPlan?.baseCurrency ?: "USD") }
     var exchangeCurrency by remember(planKey) { mutableStateOf(initialPlan?.exchangeCurrency ?: "EUR") }
     var isLocalTrip by remember(planKey) { mutableStateOf(initialPlan?.isLocalTrip ?: false) }
-    
-    // Section 2: Budget Type & Individuals
     var isGroup by remember(planKey) { mutableStateOf(initialPlan?.isGroup ?: false) }
     var groupType by remember(planKey) { mutableStateOf(initialPlan?.groupType ?: GroupBudgetType.INDIVIDUAL) }
+    var safetyBufferPercent by remember(planKey) { mutableIntStateOf(initialPlan?.safetyBufferPercent ?: 0) }
     
     val individualBudgets = remember(planKey) { 
         mutableStateListOf<IndividualBudget>().apply {
@@ -70,216 +69,203 @@ fun BudgetEditorPage(
         }
     }
     
-    // Section 3: Expenses
     val expenses = remember(planKey) { 
         mutableStateListOf<ExpenseItem>().apply {
             initialPlan?.let { addAll(it.expenses) }
         }
     }
-    
-    // Custom Categories from ViewModel (Globally synced)
     val globalCustomCategories = viewModel.customCategories
 
-    // Notify parent of changes to allow safety-saving
-    fun triggerPlanChanged() {
-        onPlanChanged(BudgetPlan(
-            id = planId,
-            tripId = tripId,
-            tripName = tripName,
-            startDate = startDate,
-            endDate = endDate,
-            baseCurrency = baseCurrency,
-            exchangeCurrency = exchangeCurrency,
-            isLocalTrip = isLocalTrip,
-            isGroup = isGroup,
-            groupType = groupType,
-            individualBudgets = individualBudgets.toList(),
-            expenses = expenses.toList(),
-            customCategories = globalCustomCategories.toList() // Sync global ones
-        ))
-    }
+    // Helper: Build the current plan object
+    fun getCurrentPlan() = BudgetPlan(
+        id = planId,
+        tripId = tripId,
+        tripName = tripName,
+        startDate = startDate,
+        endDate = endDate,
+        baseCurrency = baseCurrency,
+        exchangeCurrency = exchangeCurrency,
+        isLocalTrip = isLocalTrip,
+        isGroup = isGroup,
+        groupType = groupType,
+        individualBudgets = individualBudgets.toList(),
+        expenses = expenses.toList(),
+        customCategories = globalCustomCategories.toList(),
+        safetyBufferPercent = safetyBufferPercent
+    )
 
-    // Chart Display State
-    var showDailyBudget by remember { mutableStateOf(value = false) }
-    var showInExchangeCurrency by remember { mutableStateOf(value = false) }
+    fun triggerPlanChanged() { onPlanChanged(getCurrentPlan()) }
+
+    // Logic: Live Stats
+    val tripDays = (ChronoUnit.DAYS.between(startDate, endDate) + 1).coerceAtLeast(1)
+    val totalPlannedBudget = individualBudgets.sumOf { it.amount }
+    val bufferAmount = totalPlannedBudget * (safetyBufferPercent / 100.0)
+    val grandTotal = totalPlannedBudget + bufferAmount
+    val costPerPersonPerDay = if (individualBudgets.isNotEmpty()) grandTotal / individualBudgets.size / tripDays else 0.0
+
+    // Popup states
     var showAddExpensePopup by remember { mutableStateOf(value = false) }
-
+    var showInExchangeCurrency by remember { mutableStateOf(value = false) }
+    var showDailyBudget by remember { mutableStateOf(value = false) }
     val scrollState = rememberScrollState()
 
-    // Fetch rates when currency changes
-    LaunchedEffect(baseCurrency) {
-        viewModel.fetchRates(baseCurrency)
-    }
+    LaunchedEffect(baseCurrency) { viewModel.fetchRates(baseCurrency) }
     val rates by viewModel.exchangeRates.collectAsState()
     val rate = rates[exchangeCurrency] ?: 1.0
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)
-            .padding(24.dp)
-            .verticalScroll(scrollState)
+        modifier = Modifier.fillMaxSize().background(Color.Black)
     ) {
-        // Header
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
-            }
-            Text("Budget: $tripName", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // --- SECTION 1: CURRENCY ---
-        Text("Currency", color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp)
-        Spacer(modifier = Modifier.height(12.dp))
+        // --- STICKY HUD (Heads-Up Display) ---
         Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            color = Color.White.copy(alpha = 0.05f),
-            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
+            modifier = Modifier.fillMaxWidth().zIndex(10f),
+            color = Color(0xFF121212),
+            border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.1f)),
+            tonalElevation = 8.dp
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    CurrencySelector(label = "Base", currency = baseCurrency, onCurrencySelected = { baseCurrency = it; triggerPlanChanged() }, modifier = Modifier.weight(1f))
-                    if (!isLocalTrip) {
-                        CurrencySelector(label = "Exchange", currency = exchangeCurrency, onCurrencySelected = { exchangeCurrency = it; triggerPlanChanged() }, modifier = Modifier.weight(1f))
-                    }
+            Row(
+                modifier = Modifier.padding(16.dp).safeDrawingPadding(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
                 }
-                Spacer(modifier = Modifier.height(12.dp))
-                BudgetButtonSmall(label = "Local Trip", isSelected = isLocalTrip, onClick = { isLocalTrip = !isLocalTrip; triggerPlanChanged() }, modifier = Modifier.fillMaxWidth())
-            }
-        }
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        // --- SECTION 2: BUDGET TYPE ---
-        Text("Who's traveling?", color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp)
-        Spacer(modifier = Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            BudgetButtonSmall(label = "Individual", isSelected = !isGroup, onClick = { isGroup = false; groupType = GroupBudgetType.INDIVIDUAL; triggerPlanChanged() }, modifier = Modifier.weight(1f))
-            BudgetButtonSmall(label = "Group", isSelected = isGroup, onClick = { isGroup = true; if(groupType == GroupBudgetType.INDIVIDUAL) groupType = GroupBudgetType.SAME_BUDGET; triggerPlanChanged() }, modifier = Modifier.weight(1f))
-        }
-
-        if (isGroup) {
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                BudgetButtonSmall(label = "Same Budget", isSelected = groupType == GroupBudgetType.SAME_BUDGET, onClick = { groupType = GroupBudgetType.SAME_BUDGET; triggerPlanChanged() }, modifier = Modifier.weight(1f))
-                BudgetButtonSmall(label = "Different Budget", isSelected = groupType == GroupBudgetType.DIFFERENT_BUDGET, onClick = { groupType = GroupBudgetType.DIFFERENT_BUDGET; triggerPlanChanged() }, modifier = Modifier.weight(1f))
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            if (individualBudgets.size < 2 && isGroup) {
-                individualBudgets.clear()
-                individualBudgets.add(IndividualBudget(id = "main_user", name = "You"))
-                individualBudgets.add(IndividualBudget(name = "Person 2"))
-                triggerPlanChanged()
-            }
-            
-            if (groupType == GroupBudgetType.SAME_BUDGET) {
-               BudgetInputItem(
-                   individual = individualBudgets[0], 
-                   rate = rate, 
-                   currency = exchangeCurrency, 
-                   isLocal = isLocalTrip, 
-                   onUpdate = { updated -> 
-                       individualBudgets[0] = updated
-                       // Apply to all in same budget mode
-                       for (i in 1 until individualBudgets.size) {
-                           individualBudgets[i] = individualBudgets[i].copy(amount = updated.amount)
-                       }
-                       triggerPlanChanged()
-                   }, 
-                   onDelete = null
-               )
-               Spacer(modifier = Modifier.height(8.dp))
-               Text("This budget applies to all ${individualBudgets.size} people.", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp)
-            } else {
-                individualBudgets.forEachIndexed { index, individual ->
-                    BudgetInputItem(
-                        individual = individual, 
-                        rate = rate, 
-                        currency = exchangeCurrency, 
-                        isLocal = isLocalTrip, 
-                        onUpdate = { individualBudgets[index] = it; triggerPlanChanged() }, 
-                        onDelete = if (individualBudgets.size > 2) ({ individualBudgets.removeAt(index); triggerPlanChanged() }) else null
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "${String.format(Locale.US, "%.0f", costPerPersonPerDay)} $baseCurrency",
+                        color = GlowBlue,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Black
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("per person / day", color = Color.White.copy(alpha = 0.5f), fontSize = 10.sp)
                 }
-                Button(onClick = { individualBudgets.add(IndividualBudget(name = "Person ${individualBudgets.size + 1}")); triggerPlanChanged() }, colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent), contentPadding = PaddingValues(0.dp)) {
-                    Icon(Icons.Default.Add, contentDescription = null, tint = lightBlue, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Add Person", color = lightBlue, fontSize = 14.sp)
+                Button(
+                    onClick = { if (tripName.isNotBlank()) onDone(getCurrentPlan()) },
+                    colors = ButtonDefaults.buttonColors(containerColor = GlowBlue),
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text("Done", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                 }
             }
-        } else {
-            Spacer(modifier = Modifier.height(16.dp))
-            BudgetInputItem(
-                individual = individualBudgets[0], 
-                rate = rate, 
-                currency = exchangeCurrency, 
-                isLocal = isLocalTrip, 
-                onUpdate = { individualBudgets[0] = it; triggerPlanChanged() }, 
-                onDelete = null
-            )
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Column(
+            modifier = Modifier.weight(1f).padding(horizontal = 24.dp).verticalScroll(scrollState)
+        ) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("Planning: $tripName", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(24.dp))
 
-        // --- SECTION 3: VISUALIZATION ---
-        Text("Expense Breakdown", color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp)
-        Spacer(modifier = Modifier.height(12.dp))
-        
-        if (isGroup && groupType == GroupBudgetType.DIFFERENT_BUDGET) {
-            // Multiple Pie Charts
-            individualBudgets.forEach { individual ->
-                var isExpanded by remember { mutableStateOf(false) }
-                val personExpenses = expenses.filter { it.individualId == individual.id }
-                
-                Surface(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).animateContentSize(),
-                    shape = RoundedCornerShape(16.dp),
-                    color = Color.White.copy(alpha = 0.05f),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(individual.name, color = lightBlue, fontWeight = FontWeight.Bold)
-                            IconButton(onClick = { isExpanded = !isExpanded }, modifier = Modifier.size(24.dp)) {
-                                Icon(
-                                    if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                    contentDescription = null,
-                                    tint = Color.White
-                                )
-                            }
-                        }
-                        
-                        if (isExpanded) {
-                            Spacer(modifier = Modifier.height(16.dp))
-                            ExpenseVisualizationRow(
-                                expenses = personExpenses,
-                                baseCurrency = baseCurrency,
-                                exchangeCurrency = exchangeCurrency,
-                                rate = rate,
-                                showDailyBudget = showDailyBudget,
-                                showInExchangeCurrency = showInExchangeCurrency,
-                                startDate = startDate,
-                                endDate = endDate,
-                                onToggleDaily = { showDailyBudget = it },
-                                onToggleCurrency = { showInExchangeCurrency = !showInExchangeCurrency }
-                            )
-                        }
-                    }
+            // --- SECTION 0: PRESETS ---
+            Text("Quick Templates", color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp)
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TemplateButton("Backpacker", "🎒", Modifier.weight(1f)) {
+                    val daily = 50.0; individualBudgets.forEachIndexed { i, ind -> individualBudgets[i] = ind.copy(amount = daily * tripDays) }; triggerPlanChanged()
+                }
+                TemplateButton("Mid-Range", "🏨", Modifier.weight(1f)) {
+                    val daily = 150.0; individualBudgets.forEachIndexed { i, ind -> individualBudgets[i] = ind.copy(amount = daily * tripDays) }; triggerPlanChanged()
+                }
+                TemplateButton("Luxury", "💎", Modifier.weight(1f)) {
+                    val daily = 500.0; individualBudgets.forEachIndexed { i, ind -> individualBudgets[i] = ind.copy(amount = daily * tripDays) }; triggerPlanChanged()
                 }
             }
-        } else {
-            // Single Pie Chart
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // --- SECTION 1: CURRENCY ---
+            Text("Currency", color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp)
+            Spacer(modifier = Modifier.height(12.dp))
+            Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), color = Color.White.copy(alpha = 0.05f), border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        CurrencySelector(label = "Base", currency = baseCurrency, onCurrencySelected = { baseCurrency = it; triggerPlanChanged() }, modifier = Modifier.weight(1f))
+                        if (!isLocalTrip) {
+                            CurrencySelector(label = "Exchange", currency = exchangeCurrency, onCurrencySelected = { exchangeCurrency = it; triggerPlanChanged() }, modifier = Modifier.weight(1f))
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    BudgetButtonSmall(label = "Local Trip", isSelected = isLocalTrip, onClick = { isLocalTrip = !isLocalTrip; triggerPlanChanged() }, modifier = Modifier.fillMaxWidth())
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // --- SECTION 2: WHO'S TRAVELING ---
+            Text("Travelers", color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp)
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                BudgetButtonSmall(label = "Solo", isSelected = !isGroup, onClick = { isGroup = false; groupType = GroupBudgetType.INDIVIDUAL; triggerPlanChanged() }, modifier = Modifier.weight(1f))
+                BudgetButtonSmall(label = "Group", isSelected = isGroup, onClick = { isGroup = true; if(groupType == GroupBudgetType.INDIVIDUAL) groupType = GroupBudgetType.SAME_BUDGET; triggerPlanChanged() }, modifier = Modifier.weight(1f))
+            }
+
+            if (isGroup) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    BudgetButtonSmall(label = "Same Budget", isSelected = groupType == GroupBudgetType.SAME_BUDGET, onClick = { groupType = GroupBudgetType.SAME_BUDGET; triggerPlanChanged() }, modifier = Modifier.weight(1f))
+                    BudgetButtonSmall(label = "Split Differently", isSelected = groupType == GroupBudgetType.DIFFERENT_BUDGET, onClick = { groupType = GroupBudgetType.DIFFERENT_BUDGET; triggerPlanChanged() }, modifier = Modifier.weight(1f))
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                if (individualBudgets.size < 2) {
+                    individualBudgets.add(IndividualBudget(name = "Friend 1"))
+                    triggerPlanChanged()
+                }
+                
+                if (groupType == GroupBudgetType.SAME_BUDGET) {
+                   BudgetInputItem(individual = individualBudgets[0], rate = rate, currency = exchangeCurrency, isLocal = isLocalTrip, onUpdate = { updated -> 
+                       individualBudgets[0] = updated
+                       for (i in 1 until individualBudgets.size) { individualBudgets[i] = individualBudgets[i].copy(amount = updated.amount) }
+                       triggerPlanChanged()
+                   }, onDelete = null)
+                } else {
+                    individualBudgets.forEachIndexed { index, individual ->
+                        BudgetInputItem(individual = individual, rate = rate, currency = exchangeCurrency, isLocal = isLocalTrip, onUpdate = { individualBudgets[index] = it; triggerPlanChanged() }, onDelete = if (individualBudgets.size > 1) ({ individualBudgets.removeAt(index); triggerPlanChanged() }) else null)
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                    Button(onClick = { individualBudgets.add(IndividualBudget(name = "Person ${individualBudgets.size + 1}")); triggerPlanChanged() }, colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent), contentPadding = PaddingValues(0.dp)) {
+                        Icon(Icons.Default.Add, contentDescription = null, tint = lightBlue, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Add Person", color = lightBlue, fontSize = 14.sp)
+                    }
+                }
+            } else {
+                Spacer(modifier = Modifier.height(16.dp))
+                BudgetInputItem(individual = individualBudgets[0], rate = rate, currency = exchangeCurrency, isLocal = isLocalTrip, onUpdate = { individualBudgets[0] = it; triggerPlanChanged() }, onDelete = null)
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // --- SECTION 3: SAFETY BUFFER ---
+            Text("Safety Buffer", color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp)
+            Spacer(modifier = Modifier.height(8.dp))
+            Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), color = Color.White.copy(alpha = 0.05f)) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("${safetyBufferPercent}% Extra", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("+ ${String.format(Locale.US, "%.0f", bufferAmount)} $baseCurrency", color = GlowBlue)
+                    }
+                    Slider(
+                        value = safetyBufferPercent.toFloat(),
+                        onValueChange = { safetyBufferPercent = it.toInt(); triggerPlanChanged() },
+                        valueRange = 0f..20f,
+                        steps = 3,
+                        colors = SliderDefaults.colors(thumbColor = GlowBlue, activeTrackColor = GlowBlue)
+                    )
+                    Text("A small cushion for emergencies and impulse buys.", color = Color.White.copy(alpha = 0.4f), fontSize = 11.sp)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // --- SECTION 4: VISUALIZATION ---
+            Text("Breakdown", color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp)
+            Spacer(modifier = Modifier.height(12.dp))
+            
             ExpenseVisualizationRow(
-                expenses = expenses,
+                expenses = if (safetyBufferPercent > 0) expenses + ExpenseItem(name = "Buffer", amount = bufferAmount, category = "Emergency") else expenses,
                 baseCurrency = baseCurrency,
                 exchangeCurrency = exchangeCurrency,
                 rate = rate,
@@ -290,53 +276,21 @@ fun BudgetEditorPage(
                 onToggleDaily = { showDailyBudget = it },
                 onToggleCurrency = { showInExchangeCurrency = !showInExchangeCurrency }
             )
-        }
 
-        Spacer(modifier = Modifier.height(24.dp))
-        Button(
-            onClick = { showAddExpensePopup = true },
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = lightBlue.copy(alpha = 0.2f)),
-            border = BorderStroke(1.dp, lightBlue.copy(alpha = 0.5f))
-        ) {
-            Icon(Icons.Default.Add, contentDescription = null, tint = lightBlue)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Add Item", color = lightBlue, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(24.dp))
+            Button(
+                onClick = { showAddExpensePopup = true },
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = lightBlue.copy(alpha = 0.2f)),
+                border = BorderStroke(1.dp, lightBlue.copy(alpha = 0.5f))
+            ) {
+                Icon(Icons.Default.Add, contentDescription = null, tint = lightBlue)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Add Categorized Expense", color = lightBlue, fontWeight = FontWeight.Bold)
+            }
+            Spacer(modifier = Modifier.height(120.dp))
         }
-
-        Spacer(modifier = Modifier.height(48.dp))
-        Button(
-            onClick = { 
-                if (tripName.isBlank()) return@Button
-                
-                onDone(BudgetPlan(
-                    id = planId,
-                    tripId = tripId,
-                    tripName = tripName,
-                    startDate = startDate,
-                    endDate = endDate,
-                    baseCurrency = baseCurrency,
-                    exchangeCurrency = exchangeCurrency,
-                    isLocalTrip = isLocalTrip,
-                    isGroup = isGroup,
-                    groupType = groupType,
-                    individualBudgets = individualBudgets.toList(),
-                    expenses = expenses.toList(),
-                    customCategories = globalCustomCategories.toList()
-                ))
-            },
-            modifier = Modifier.align(Alignment.CenterHorizontally).width(160.dp).height(56.dp),
-            shape = RoundedCornerShape(28.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = lightBlue,
-                disabledContainerColor = Color.Gray
-            ),
-            enabled = tripName.isNotBlank()
-        ) {
-            Text("Done", color = Color.Black, fontWeight = FontWeight.Bold)
-        }
-        Spacer(modifier = Modifier.height(120.dp))
     }
 
     if (showAddExpensePopup) {
@@ -350,6 +304,23 @@ fun BudgetEditorPage(
     }
 }
 
+@Composable
+fun TemplateButton(label: String, emoji: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier.height(60.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = Color.White.copy(alpha = 0.05f),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            Text(emoji, fontSize = 18.sp)
+            Text(label, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+// ... Rest of components (ExpenseVisualizationRow, BudgetInputItem, PieChart, AddExpenseDialog, CurrencySelector, BudgetButtonSmall, BudgetButtonCircle) remain same as before ...
 @Composable
 fun ExpenseVisualizationRow(
     expenses: List<ExpenseItem>,
