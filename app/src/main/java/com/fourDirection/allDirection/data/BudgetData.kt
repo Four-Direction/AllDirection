@@ -10,7 +10,16 @@ enum class GroupBudgetType {
 }
 
 object DefaultCategories {
-    val list = listOf("Food", "Transport", "Stay", "Activities", "Shopping", "Other")
+    val list = listOf(
+        "Food & Drinks",
+        "Entertainment",
+        "Emergency",
+        "Tickets",
+        "Accommodation",
+        "Transport",
+        "Shopping",
+        "Other"
+    )
 }
 
 data class IndividualBudget(
@@ -25,6 +34,16 @@ data class ExpenseItem(
     val name: String,
     val amount: Double,
     val category: String,
+    val individualId: String? = null
+)
+
+data class Transaction(
+    val id: String = UUID.randomUUID().toString(),
+    val planId: String,
+    val name: String,
+    val amount: Double,
+    val category: String,
+    val date: LocalDate,
     val individualId: String? = null
 )
 

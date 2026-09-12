@@ -26,7 +26,9 @@ enum class BudgetPlannerView {
     SELECTION,
     LIST,
     TRIP_SELECTOR,
-    EDITOR
+    EDITOR,
+    TRACKER_LIST,
+    TRACKER_DASHBOARD
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -41,14 +43,13 @@ fun BudgetTrackerPage(onDismiss: () -> Unit) {
 
     // Handle internal back navigation
     BackHandler(enabled = currentView != BudgetPlannerView.SELECTION) {
-        if (currentView == BudgetPlannerView.EDITOR) {
-            showQuitConfirmation = true
-        } else {
-            when (currentView) {
-                BudgetPlannerView.LIST -> currentView = BudgetPlannerView.SELECTION
-                BudgetPlannerView.TRIP_SELECTOR -> currentView = BudgetPlannerView.LIST
-                else -> {}
-            }
+        when (currentView) {
+            BudgetPlannerView.EDITOR -> showQuitConfirmation = true
+            BudgetPlannerView.LIST -> currentView = BudgetPlannerView.SELECTION
+            BudgetPlannerView.TRIP_SELECTOR -> currentView = BudgetPlannerView.LIST
+            BudgetPlannerView.TRACKER_LIST -> currentView = BudgetPlannerView.SELECTION
+            BudgetPlannerView.TRACKER_DASHBOARD -> currentView = BudgetPlannerView.TRACKER_LIST
+            else -> {}
         }
     }
 
@@ -63,7 +64,7 @@ fun BudgetTrackerPage(onDismiss: () -> Unit) {
                 BudgetSelectionView(
                     onDismiss = onDismiss,
                     onPlannerClick = { currentView = BudgetPlannerView.LIST },
-                    onTrackerClick = { /* Handle tracker click */ }
+                    onTrackerClick = { currentView = BudgetPlannerView.TRACKER_LIST }
                 )
             }
             BudgetPlannerView.LIST -> {
@@ -102,6 +103,26 @@ fun BudgetTrackerPage(onDismiss: () -> Unit) {
                         currentView = BudgetPlannerView.LIST
                     }
                 )
+            }
+            BudgetPlannerView.TRACKER_LIST -> {
+                BudgetTrackerListPage(
+                    viewModel = viewModel,
+                    onBack = { currentView = BudgetPlannerView.SELECTION },
+                    onPlanClick = { plan ->
+                        editingPlanState = plan
+                        viewModel.startTransactionsListener(plan.id)
+                        currentView = BudgetPlannerView.TRACKER_DASHBOARD
+                    }
+                )
+            }
+            BudgetPlannerView.TRACKER_DASHBOARD -> {
+                editingPlanState?.let { plan ->
+                    BudgetTrackerDashboard(
+                        viewModel = viewModel,
+                        plan = plan,
+                        onBack = { currentView = BudgetPlannerView.TRACKER_LIST }
+                    )
+                }
             }
         }
 

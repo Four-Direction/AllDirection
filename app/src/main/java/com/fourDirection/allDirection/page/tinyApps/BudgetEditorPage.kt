@@ -65,7 +65,7 @@ fun BudgetEditorPage(
             if (initialPlan != null && (initialPlan.individualBudgets.isNotEmpty())) {
                 addAll(initialPlan.individualBudgets)
             } else {
-                add(IndividualBudget(name = "You"))
+                add(IndividualBudget(id = "main_user", name = "You"))
             }
         }
     }
@@ -73,34 +73,30 @@ fun BudgetEditorPage(
     // Section 3: Expenses
     val expenses = remember(planKey) { 
         mutableStateListOf<ExpenseItem>().apply {
-        initialPlan?.let { addAll(it.expenses) }
+            initialPlan?.let { addAll(it.expenses) }
         }
     }
-    val customCategories = remember(planKey) { 
-        mutableStateListOf<String>().apply {
-            if (initialPlan != null) addAll(initialPlan.customCategories)
-        }
-    }
+    
+    // Custom Categories from ViewModel (Globally synced)
+    val globalCustomCategories = viewModel.customCategories
 
     // Notify parent of changes to allow safety-saving
     fun triggerPlanChanged() {
-        onPlanChanged(
-            BudgetPlan(
-                id = planId,
-                tripId = tripId,
-                tripName = tripName,
-                startDate = startDate,
-                endDate = endDate,
-                baseCurrency = baseCurrency,
-                exchangeCurrency = exchangeCurrency,
-                isLocalTrip = isLocalTrip,
-                isGroup = isGroup,
-                groupType = groupType,
-                individualBudgets = individualBudgets.toList(),
-                expenses = expenses.toList(),
-                customCategories = customCategories.toList()
-            )
-        )
+        onPlanChanged(BudgetPlan(
+            id = planId,
+            tripId = tripId,
+            tripName = tripName,
+            startDate = startDate,
+            endDate = endDate,
+            baseCurrency = baseCurrency,
+            exchangeCurrency = exchangeCurrency,
+            isLocalTrip = isLocalTrip,
+            isGroup = isGroup,
+            groupType = groupType,
+            individualBudgets = individualBudgets.toList(),
+            expenses = expenses.toList(),
+            customCategories = globalCustomCategories.toList() // Sync global ones
+        ))
     }
 
     // Chart Display State
@@ -175,7 +171,7 @@ fun BudgetEditorPage(
             Spacer(modifier = Modifier.height(16.dp))
             if (individualBudgets.size < 2 && isGroup) {
                 individualBudgets.clear()
-                individualBudgets.add(IndividualBudget(name = "Person 1"))
+                individualBudgets.add(IndividualBudget(id = "main_user", name = "You"))
                 individualBudgets.add(IndividualBudget(name = "Person 2"))
                 triggerPlanChanged()
             }
@@ -327,7 +323,7 @@ fun BudgetEditorPage(
                     groupType = groupType,
                     individualBudgets = individualBudgets.toList(),
                     expenses = expenses.toList(),
-                    customCategories = customCategories.toList()
+                    customCategories = globalCustomCategories.toList()
                 ))
             },
             modifier = Modifier.align(Alignment.CenterHorizontally).width(160.dp).height(56.dp),
@@ -345,11 +341,11 @@ fun BudgetEditorPage(
 
     if (showAddExpensePopup) {
         AddExpenseDialog(
-            categories = DefaultCategories.list + customCategories,
+            categories = DefaultCategories.list + globalCustomCategories,
             individuals = if (isGroup && groupType == GroupBudgetType.DIFFERENT_BUDGET) individualBudgets else emptyList(),
             onDismiss = { showAddExpensePopup = false },
             onAddExpense = { expenses.add(it); triggerPlanChanged() },
-            onAddCategory = { customCategories.add(it); triggerPlanChanged() }
+            onAddCategory = { viewModel.addCustomCategory(it); triggerPlanChanged() }
         )
     }
 }
@@ -694,3 +690,5 @@ fun BudgetButtonCircle(
         }
     }
 }
+
+
