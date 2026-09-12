@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fourDirection.allDirection.data.PlacesRepository
 import com.fourDirection.allDirection.page.main.LocationDetailSheet
@@ -214,6 +215,7 @@ fun ExplorePage(
         if (!isRoutingMode) {
             Column(
                 modifier = Modifier
+                    .zIndex(2f)
                     .fillMaxWidth()
                     .statusBarsPadding()
                     .padding(16.dp),

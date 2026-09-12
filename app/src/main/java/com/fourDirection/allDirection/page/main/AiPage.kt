@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -44,6 +45,9 @@ fun AiPage(
     var showDeleteDialog by remember { mutableStateOf(false) }
     val messages = viewModel.messages
     val listState = rememberLazyListState()
+
+    // Detect if keyboard is visible
+    val isKeyboardVisible = WindowInsets.ime.asPaddingValues().calculateBottomPadding() > 0.dp
 
     // Scroll to bottom when messages change
     LaunchedEffect(messages.size) {
@@ -146,7 +150,7 @@ fun AiPage(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 120.dp) // Leave space for the bottom dock
+                    .padding(bottom = if (isKeyboardVisible) 16.dp else 120.dp) // Reduce padding when keyboard is up
                     .height(56.dp)
                     .clip(RoundedCornerShape(28.dp))
                     .background(inputBgColor)

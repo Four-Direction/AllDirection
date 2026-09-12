@@ -77,6 +77,7 @@ fun HomePage(
     userName: String = "User",
     totalDistance: Double = 0.0,
     period: String = "day",
+    distanceUnit: String = "km",
     hazeState: HazeState,
     onCurrencyClick: () -> Unit = {},
     onTipClick: () -> Unit = {},
@@ -218,7 +219,7 @@ fun HomePage(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "You have traveled over ${totalDistance.toInt()} km\nfor the past $period",
+                            text = "You have traveled over ${if (distanceUnit == "miles") (totalDistance * 0.621371).toInt() else totalDistance.toInt()} $distanceUnit\nfor the past $period",
                             color = Color.White.copy(alpha = 0.8f),
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Normal

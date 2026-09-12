@@ -130,7 +130,7 @@ fun ProfilePage(
                 onClick = onSettingsClick
             )
 
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.height(24.dp))
 
             Button(
                 onClick = onSignOut,
@@ -144,6 +144,8 @@ fun ProfilePage(
             ) {
                 Text("Sign Out", color = Color.White, fontWeight = FontWeight.Bold)
             }
+
+            Spacer(modifier = Modifier.weight(1f))
 
             Spacer(modifier = Modifier.height(32.dp))
         }

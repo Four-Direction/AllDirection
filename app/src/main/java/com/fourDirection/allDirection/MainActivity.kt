@@ -99,9 +99,18 @@ class MainActivity : ComponentActivity() {
                                     val diffMillis = System.currentTimeMillis() - createdAt.toDate().time
                                     val diffDays = diffMillis / (1000 * 60 * 60 * 24)
                                     period = when {
-                                        diffDays >= 365 -> "${diffDays / 365} year"
-                                        diffDays >= 30 -> "${diffDays / 30} month"
-                                        else -> "${diffDays.coerceAtLeast(1)} day"
+                                        diffDays >= 365 -> {
+                                            val years = diffDays / 365
+                                            "$years year${if (years > 1L) "s" else ""}"
+                                        }
+                                        diffDays >= 30 -> {
+                                            val months = diffDays / 30
+                                            "$months month${if (months > 1L) "s" else ""}"
+                                        }
+                                        else -> {
+                                            val days = diffDays.coerceAtLeast(1)
+                                            "$days day${if (days > 1L) "s" else ""}"
+                                        }
                                     }
                                 }
                             }

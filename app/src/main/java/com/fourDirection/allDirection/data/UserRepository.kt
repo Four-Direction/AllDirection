@@ -8,6 +8,7 @@ import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.tasks.await
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -15,24 +16,56 @@ import java.util.UUID
 
 class UserRepository {
     private val db = FirebaseFirestore.getInstance()
+    private val dateFormatter = DateTimeFormatter.ISO_LOCAL_DATE
 
     suspend fun saveUserToFirestore(user: FirebaseUser, customName: String? = null, customPhotoUrl: String? = null) {
         try {
-            val userData = hashMapOf(
+            val userData = mutableMapOf<String, Any>(
                 "uid" to user.uid,
-                "name" to (customName ?: user.displayName ?: ""),
-                "name_lowercase" to (customName ?: user.displayName ?: "").lowercase(),
                 "email" to (user.email ?: ""),
-                "photoUrl" to (customPhotoUrl ?: user.photoUrl?.toString() ?: ""),
-                "createdAt" to Timestamp.now(),
-                "totalDistance" to 0.0,
                 "lastLogin" to Timestamp.now()
             )
 
-            db.collection("users").document(user.uid).set(userData).await()
+            customName?.let { 
+                userData["name"] = it
+                userData["name_lowercase"] = it.lowercase()
+            } ?: run {
+                userData["name"] = user.displayName ?: "User"
+                userData["name_lowercase"] = (user.displayName ?: "User").lowercase()
+            }
+
+            if (customPhotoUrl != null) {
+                userData["photoUrl"] = customPhotoUrl
+            } else if (user.photoUrl != null) {
+                userData["photoUrl"] = user.photoUrl.toString()
+            }
+
+            db.collection("users").document(user.uid).set(userData, SetOptions.merge()).await()
         } catch (e: Exception) {
             Log.e("UserRepository", "Error saving user to Firestore", e)
             throw e
+        }
+    }
+
+    suspend fun saveCustomCategory(uid: String, category: String) {
+        try {
+            db.collection("users").document(uid)
+                .update("customCategories", FieldValue.arrayUnion(category))
+                .await()
+        } catch (e: Exception) {
+            db.collection("users").document(uid)
+                .set(mapOf("customCategories" to listOf(category)), SetOptions.merge())
+                .await()
+        }
+    }
+
+    suspend fun getCustomCategories(uid: String): List<String> {
+        return try {
+            val doc = db.collection("users").document(uid).get().await()
+            @Suppress("UNCHECKED_CAST")
+            doc.get("customCategories") as? List<String> ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
         }
     }
 
@@ -91,8 +124,6 @@ class UserRepository {
     }
 
     // --- Trip Management ---
-
-    private val dateFormatter = DateTimeFormatter.ISO_LOCAL_DATE
 
     suspend fun saveTrip(uid: String, trip: Trip) {
         try {
@@ -183,7 +214,6 @@ class UserRepository {
         try {
             val batch = db.batch()
             
-            // 1. Incoming request for the receiver
             val requestData = hashMapOf(
                 "fromUid" to fromUid,
                 "fromName" to fromName,
@@ -193,7 +223,6 @@ class UserRepository {
                 .collection("connectionRequests").document(fromUid)
             batch.set(incomingRef, requestData)
             
-            // 2. Track outgoing request for the sender (to show "Requested" status correctly)
             val outgoingRef = db.collection("users").document(fromUid)
                 .collection("sentRequests").document(toUid)
             batch.set(outgoingRef, mapOf(
@@ -223,22 +252,18 @@ class UserRepository {
         try {
             val batch = db.batch()
             
-            // 1. Add to my connections
             val myConnRef = db.collection("users").document(uid)
                 .collection("friends").document(friendUid)
             batch.set(myConnRef, mapOf("uid" to friendUid, "name" to friendName, "addedAt" to Timestamp.now()))
             
-            // 2. Add to their connections
             val theirConnRef = db.collection("users").document(friendUid)
                 .collection("friends").document(uid)
             batch.set(theirConnRef, mapOf("uid" to uid, "name" to currentUserName, "addedAt" to Timestamp.now()))
             
-            // 3. Delete the incoming request from my folder
             val reqRef = db.collection("users").document(uid)
                 .collection("connectionRequests").document(friendUid)
             batch.delete(reqRef)
             
-            // 4. Delete the outgoing request record from THEIR folder
             val theirSentRef = db.collection("users").document(friendUid)
                 .collection("sentRequests").document(uid)
             batch.delete(theirSentRef)
@@ -264,7 +289,6 @@ class UserRepository {
     suspend fun searchUsersByName(query: String): List<Map<String, Any>> {
         val lowercaseQuery = query.lowercase()
         return try {
-            // Search using name_lowercase for case-insensitive matches
             val lowercaseSnapshot = db.collection("users")
                 .whereGreaterThanOrEqualTo("name_lowercase", lowercaseQuery)
                 .whereLessThanOrEqualTo("name_lowercase", lowercaseQuery + "\uf8ff")
@@ -273,8 +297,6 @@ class UserRepository {
             
             val results = lowercaseSnapshot.documents.mapNotNull { it.data }.toMutableList()
 
-            // If we didn't find enough results, try searching by original name field (case-sensitive)
-            // for users who haven't logged in since the name_lowercase change.
             if (results.size < 5) {
                 val legacySnapshot = db.collection("users")
                     .whereGreaterThanOrEqualTo("name", query)
@@ -306,12 +328,10 @@ class UserRepository {
                 "addedAt" to Timestamp.now()
             )
             
-            // Add to current user's connections
             db.collection("users").document(uid)
                 .collection("friends").document(connectionUid)
                 .set(connectionData).await()
                 
-            // Mutual connection
             val currentUserName = getUserName(uid) ?: "User"
             val meData = hashMapOf(
                 "uid" to uid,
@@ -356,7 +376,6 @@ class UserRepository {
                 "memberUids" to (members.map { it["uid"] ?: "" } + uid).distinct()
             )
 
-            // Create the group in a global groups collection
             db.collection("groups").document(groupId).set(groupData).await()
         } catch (e: Exception) {
             Log.e("UserRepository", "Error creating group", e)
@@ -525,16 +544,14 @@ class UserRepository {
             snapshot.documents.mapNotNull { doc ->
                 val id = doc.getString("id") ?: return@mapNotNull null
                 val tripName = doc.getString("tripName") ?: ""
-                val startStr = doc.getString("startDate") ?: return@mapNotNull null
-                val endStr = doc.getString("endDate") ?: return@mapNotNull null
-                val startDate = LocalDate.parse(startStr, dateFormatter)
-                val endDate = LocalDate.parse(endStr, dateFormatter)
+                val startDate = LocalDate.parse(doc.getString("startDate") ?: return@mapNotNull null, dateFormatter)
+                val endDate = LocalDate.parse(doc.getString("endDate") ?: return@mapNotNull null, dateFormatter)
 
                 @Suppress("UNCHECKED_CAST")
                 val individualsRaw = doc.get("individualBudgets") as? List<Map<String, Any>> ?: emptyList()
-                val individualBudgets = individualsRaw.map {
+                val individualBudgets = individualsRaw.mapIndexed { index, it ->
                     IndividualBudget(
-                        id = it["id"] as? String ?: UUID.randomUUID().toString(),
+                        id = it["id"] as? String ?: (if (it["name"] == "You") "main_user" else "ind_${index}"),
                         name = it["name"] as? String ?: "",
                         amount = (it["amount"] as? Number)?.toDouble() ?: 0.0,
                         isAmountInExchangeCurrency = it["isAmountInExchangeCurrency"] as? Boolean ?: false
@@ -555,6 +572,7 @@ class UserRepository {
 
                 @Suppress("UNCHECKED_CAST")
                 val customCats = doc.get("customCategories") as? List<String> ?: emptyList()
+                
                 BudgetPlan(
                     id = id,
                     tripId = doc.getString("tripId"),
@@ -584,6 +602,64 @@ class UserRepository {
                 .delete().await()
         } catch (e: Exception) {
             Log.e("UserRepository", "Error deleting budget plan", e)
+            throw e
+        }
+    }
+
+    // --- Transaction Management (Actual Spending) ---
+
+    suspend fun saveTransaction(uid: String, tx: Transaction) {
+        try {
+            val data = hashMapOf(
+                "id" to tx.id,
+                "planId" to tx.planId,
+                "name" to tx.name,
+                "amount" to tx.amount,
+                "category" to tx.category,
+                "date" to tx.date.format(dateFormatter),
+                "individualId" to tx.individualId
+            )
+            db.collection("users").document(uid)
+                .collection("budgetPlans").document(tx.planId)
+                .collection("transactions").document(tx.id)
+                .set(data).await()
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error saving transaction", e)
+            throw e
+        }
+    }
+
+    suspend fun getTransactions(uid: String, planId: String): List<Transaction> {
+        return try {
+            val snapshot = db.collection("users").document(uid)
+                .collection("budgetPlans").document(planId)
+                .collection("transactions").get().await()
+
+            snapshot.documents.mapNotNull { doc ->
+                Transaction(
+                    id = doc.getString("id") ?: doc.id,
+                    planId = doc.getString("planId") ?: planId,
+                    name = doc.getString("name") ?: "",
+                    amount = (doc.get("amount") as? Number)?.toDouble() ?: 0.0,
+                    category = doc.getString("category") ?: "Other",
+                    date = LocalDate.parse(doc.getString("date") ?: return@mapNotNull null, dateFormatter),
+                    individualId = doc.getString("individualId")
+                )
+            }
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error getting transactions", e)
+            emptyList()
+        }
+    }
+
+    suspend fun deleteTransaction(uid: String, planId: String, txId: String) {
+        try {
+            db.collection("users").document(uid)
+                .collection("budgetPlans").document(planId)
+                .collection("transactions").document(txId)
+                .delete().await()
+        } catch (e: Exception) {
+            Log.e("UserRepository", "Error deleting transaction", e)
             throw e
         }
     }
