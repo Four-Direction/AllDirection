@@ -51,8 +51,10 @@ fun ExplorePage(
     hazeState: HazeState,
     shouldFocusSearch: Boolean = false,
     initialSearchQuery: String? = null,
+    initialTripRoute: List<String>? = null,
     onSearchFocused: () -> Unit = {},
-    onRoutingModeChange: (Boolean) -> Unit = {}
+    onRoutingModeChange: (Boolean) -> Unit = {},
+    onRouteHandled: () -> Unit = {}
 ) {
     val accessToken = "pk.eyJ1IjoiamFuZGRpIiwiYSI6ImNtdG9qYmx1ejB1cTEyd29majMxYzRvenMifQ.MHg_MphmkzDyLjIYLdLnmQ"
     var isMapReady by remember { mutableStateOf(false) }
@@ -84,6 +86,12 @@ fun ExplorePage(
         // Handle initial search if provided
         initialSearchQuery?.let { query ->
             exploreViewModel.onQueryChanged(query, autoSelect = true)
+        }
+
+        // Handle initial trip route from calendar
+        initialTripRoute?.let { addresses ->
+            exploreViewModel.setTripRoute(addresses)
+            onRouteHandled()
         }
     }
 

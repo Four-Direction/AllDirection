@@ -58,6 +58,7 @@ fun MainContainer(
     var isRoutingActive by remember { mutableStateOf(false) }
     var plannerSubTab by remember { mutableStateOf(0) } // 0 for Map, 1 for Calendar
     var pendingLocationSearch by remember { mutableStateOf<String?>(null) }
+    var pendingTripRoute by remember { mutableStateOf<List<String>?>(null) }
     
     val items = listOf(
         NavItem.Home,
@@ -189,16 +190,23 @@ fun MainContainer(
                                 hazeState = hazeState,
                                 shouldFocusSearch = shouldFocusExploreSearch,
                                 initialSearchQuery = pendingLocationSearch,
+                                initialTripRoute = pendingTripRoute,
                                 onSearchFocused = { 
                                     shouldFocusExploreSearch = false
                                     pendingLocationSearch = null
                                 },
-                                onRoutingModeChange = { isRoutingActive = it }
+                                onRoutingModeChange = { isRoutingActive = it },
+                                onRouteHandled = { pendingTripRoute = null }
                             )
                         } else {
                             CalendarPage(
                                 onLocationClick = { location ->
                                     pendingLocationSearch = location
+                                    plannerSubTab = 0
+                                },
+                                onSeeRoute = { addresses ->
+                                    pendingTripRoute = addresses
+                                    selectedItem = items.indexOf(NavItem.Planner)
                                     plannerSubTab = 0
                                 }
                             )

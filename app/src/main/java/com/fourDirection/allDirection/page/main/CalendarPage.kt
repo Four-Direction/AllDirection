@@ -1,5 +1,6 @@
 package com.fourDirection.allDirection.page.main
 
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -28,6 +29,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.TripOrigin
 import androidx.compose.material.icons.filled.Add
@@ -80,7 +82,8 @@ import kotlin.math.abs
 @Composable
 fun CalendarPage(
     viewModel: CalendarViewModel = viewModel(),
-    onLocationClick: (String) -> Unit = {}
+    onLocationClick: (String) -> Unit = {},
+    onSeeRoute: (List<String>) -> Unit = {}
 ) {
     val context = LocalContext.current
     val accessToken = "pk.eyJ1IjoiamFuZGRpIiwiYSI6ImNtdG9qYmx1ejB1cTEyd29majMxYzRvenMifQ.MHg_MphmkzDyLjIYLdLnmQ"
@@ -378,6 +381,34 @@ fun CalendarPage(
                         onDismiss = { selectedTripId = null },
                         onEditDay = { editingDayPlan = it },
                         onLocationClick = onLocationClick,
+                        onSeeRoute = { dayPlan ->
+                            // Find previous day's hotel
+                            val dayList = selectedTrip.dayPlans.keys.sorted()
+                            val currentDayIndex = dayList.indexOf(dayPlan.date)
+                            val prevHotel = if (currentDayIndex > 0) {
+                                selectedTrip.dayPlans[dayList[currentDayIndex - 1]]?.hotel
+                            } else null
+
+                            val routeAddresses = mutableListOf<String>()
+                            
+                            // Start Point
+                            val isFirstDay = dayPlan.date == selectedTrip.startDate
+                            val isLastDay = dayPlan.date == selectedTrip.endDate
+                            
+                            val start = if (isFirstDay) dayPlan.startLocation else prevHotel
+                            if (start != null) routeAddresses.add(start)
+                            
+                            // Stops
+                            routeAddresses.addAll(dayPlan.locations)
+                            
+                            // End Point
+                            val end = if (isLastDay) dayPlan.endLocation else dayPlan.hotel
+                            if (end != null) routeAddresses.add(end)
+                            
+                            if (routeAddresses.size >= 2) {
+                                onSeeRoute(routeAddresses)
+                            }
+                        },
                         onDeleteTrip = {
                             viewModel.deleteTrip(selectedTrip.id)
                             selectedTripId = null
@@ -394,6 +425,7 @@ fun CalendarPage(
                     viewModel = viewModel,
                     onDismiss = { editingDayPlan = null },
                     onLocationClick = onLocationClick,
+                    onSeeRoute = onSeeRoute,
                     onSave = { updatedPlan ->
                         val newPlans = selectedTrip.dayPlans.toMutableMap()
                         newPlans[updatedPlan.date] = updatedPlan
@@ -627,6 +659,7 @@ fun TripDetailView(
     onDismiss: () -> Unit,
     onEditDay: (DayPlan) -> Unit,
     onLocationClick: (String) -> Unit = {},
+    onSeeRoute: (DayPlan) -> Unit = {},
     onDeleteTrip: () -> Unit
 ) {
     Surface(
@@ -692,7 +725,8 @@ fun TripDetailView(
                     val dayPlan = trip.dayPlans[date] ?: DayPlan(date = date)
                     DayPlanCard(
                         dayPlan = dayPlan,
-                        onEditClick = { onEditDay(dayPlan) }
+                        onEditClick = { onEditDay(dayPlan) },
+                        onSeeRouteClick = { onSeeRoute(dayPlan) }
                     )
                 }
             }
@@ -703,7 +737,8 @@ fun TripDetailView(
 @Composable
 fun DayPlanCard(
     dayPlan: DayPlan,
-    onEditClick: () -> Unit
+    onEditClick: () -> Unit,
+    onSeeRouteClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
@@ -784,6 +819,17 @@ fun DayPlanCard(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
+                if (dayPlan.locations.isNotEmpty() || dayPlan.hotel != null || dayPlan.startLocation != null || dayPlan.endLocation != null) {
+                    TextButton(
+                        onClick = onSeeRouteClick,
+                        modifier = Modifier.fillMaxWidth().height(32.dp),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Icon(Icons.Default.Directions, contentDescription = null, tint = GlowBlue, modifier = Modifier.size(12.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("See Route", color = GlowBlue, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
             }
         }
     }
@@ -796,6 +842,7 @@ fun DayPlanEditDialog(
     viewModel: CalendarViewModel,
     onDismiss: () -> Unit,
     onLocationClick: (String) -> Unit = {},
+    onSeeRoute: (List<String>) -> Unit = {},
     onSave: (DayPlan) -> Unit
 ) {
     var isEditing by remember { mutableStateOf(false) }
@@ -1052,6 +1099,45 @@ fun DayPlanEditDialog(
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
+
+                // See Trip Route Button
+                if (!isEditing && (locations.isNotEmpty() || hotel != null || startLocation != null || endLocation != null)) {
+                    Button(
+                        onClick = {
+                            val routeAddresses = mutableListOf<String>()
+                            
+                            // Start Point: Prev day hotel or current startLocation
+                            val isFirstDay = dayPlan.date == trip.startDate
+                            val isLastDay = dayPlan.date == trip.endDate
+                            
+                            val start = if (isFirstDay) startLocation else {
+                                trip.dayPlans[dayPlan.date.minusDays(1)]?.hotel
+                            }
+                            if (start != null) routeAddresses.add(start)
+                            
+                            // Stops: current day locations
+                            routeAddresses.addAll(locations)
+                            
+                            // End Point: current day endLocation or current day hotel
+                            val end = if (isLastDay) endLocation else hotel
+                            if (end != null) routeAddresses.add(end)
+                            
+                            if (routeAddresses.size >= 2) {
+                                onSeeRoute(routeAddresses)
+                            } else {
+                                Log.d("CalendarPage", "Not enough locations for a route: $routeAddresses")
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().height(56.dp).padding(bottom = 8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = GlowBlue.copy(alpha = 0.2f)),
+                        border = BorderStroke(1.dp, GlowBlue),
+                        shape = MaterialTheme.shapes.medium
+                    ) {
+                        Icon(Icons.Default.Directions, contentDescription = null, tint = GlowBlue)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("See Trip Route", color = GlowBlue, fontWeight = FontWeight.Bold)
+                    }
+                }
 
                 Button(
                     onClick = { 

@@ -139,7 +139,10 @@ class CalendarViewModel : ViewModel() {
                             date = LocalDate.parse(dateStr, dateFormatter),
                             description = data["description"] as? String ?: "",
                             locations = locationsList.filterIsInstance<String>(),
-                            events = eventsList?.filterIsInstance<String>() ?: emptyList()
+                            events = eventsList?.filterIsInstance<String>() ?: emptyList(),
+                            hotel = data["hotel"] as? String,
+                            startLocation = data["startLocation"] as? String,
+                            endLocation = data["endLocation"] as? String
                         )
                     }.mapKeys { LocalDate.parse(it.key, dateFormatter) }
 

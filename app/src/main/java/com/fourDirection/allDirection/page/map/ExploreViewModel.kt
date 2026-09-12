@@ -10,6 +10,7 @@ import com.mapbox.geojson.Point
 import com.mapbox.search.*
 import com.mapbox.search.result.SearchResult
 import com.mapbox.search.result.SearchSuggestion
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -300,5 +301,53 @@ class ExploreViewModel : ViewModel() {
             Waypoint(name = "Start", isPlaceholder = true),
             Waypoint(name = "End", isPlaceholder = true)
         )
+    }
+
+    fun setTripRoute(addresses: List<String>) {
+        if (addresses.size < 2) return
+        
+        _isRoutingMode.value = true
+        _currentRoute.value = null
+        
+        viewModelScope.launch {
+            val resolvedWaypoints = addresses.mapIndexed { index, address ->
+                val point = searchEngine?.let { engine ->
+                    val options = SearchOptions(limit = 1)
+                    var resultPoint: Point? = null
+                    val job = launch {
+                        engine.search(address, options, object : SearchSuggestionsCallback {
+                            override fun onSuggestions(suggestions: List<SearchSuggestion>, responseInfo: ResponseInfo) {
+                                if (suggestions.isNotEmpty()) {
+                                    engine.select(suggestions.first(), object : SearchSelectionCallback {
+                                        override fun onResult(suggestion: SearchSuggestion, result: SearchResult, responseInfo: ResponseInfo) {
+                                            resultPoint = result.coordinate
+                                        }
+                                        override fun onResults(suggestion: SearchSuggestion, results: List<SearchResult>, responseInfo: ResponseInfo) {
+                                            if (results.isNotEmpty()) resultPoint = results.first().coordinate
+                                        }
+                                        override fun onError(e: Exception) {}
+                                        override fun onSuggestions(suggestions: List<SearchSuggestion>, responseInfo: ResponseInfo) {}
+                                    })
+                                }
+                            }
+                            override fun onError(e: Exception) {}
+                        })
+                    }
+                    job.join()
+                    
+                    // Wait a bit for the async callback
+                    var retry = 0
+                    while (resultPoint == null && retry < 20) {
+                        delay(100)
+                        retry++
+                    }
+                    resultPoint
+                }
+                Waypoint(name = address, point = point, isPlaceholder = point == null)
+            }
+            
+            _waypoints.value = resolvedWaypoints
+            calculateRoute()
+        }
     }
 }
