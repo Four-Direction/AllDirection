@@ -1,6 +1,10 @@
 package com.fourDirection.allDirection.page.main
 
 import android.widget.Toast
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -18,10 +22,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -206,7 +215,22 @@ fun SocialPage(onGroupClick: (Map<String, Any>) -> Unit = {}) {
                     modifier = Modifier.padding(24.dp)
                 )
 
-                // Tab Switcher
+                // Tab Switcher with Animation
+                var groupsTabSize by remember { mutableStateOf(IntSize.Zero) }
+                var communityTabSize by remember { mutableStateOf(IntSize.Zero) }
+                val density = LocalDensity.current
+                
+                val springSpec = spring<Float>(
+                    dampingRatio = 0.8f,
+                    stiffness = 400f
+                )
+                
+                val indicatorOffset by animateFloatAsState(
+                    targetValue = if (selectedTab == 0) 0f else with(density) { groupsTabSize.width.toDp().toPx() },
+                    animationSpec = springSpec,
+                    label = "indicatorOffset"
+                )
+
                 Surface(
                     modifier = Modifier
                         .align(Alignment.CenterHorizontally)
@@ -215,20 +239,43 @@ fun SocialPage(onGroupClick: (Map<String, Any>) -> Unit = {}) {
                     color = Color.White.copy(alpha = 0.05f),
                     border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.1f))
                 ) {
-                    Row(
-                        modifier = Modifier.padding(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        SubTabItem(
-                            label = "Groups",
-                            isSelected = selectedTab == 0,
-                            onClick = { selectedTab = 0 }
-                        )
-                        SubTabItem(
-                            label = "Community",
-                            isSelected = selectedTab == 1,
-                            onClick = { selectedTab = 1 }
-                        )
+                    Box(modifier = Modifier.padding(4.dp)) {
+                        // Background Indicator
+                        if (groupsTabSize.width > 0 && communityTabSize.width > 0) {
+                            val currentWidth = if (selectedTab == 0) groupsTabSize.width else communityTabSize.width
+                            val indicatorWidth by animateFloatAsState(
+                                targetValue = with(density) { currentWidth.toDp().toPx() },
+                                animationSpec = springSpec,
+                                label = "indicatorWidth"
+                            )
+
+                            Box(
+                                modifier = Modifier
+                                    .offset(x = with(density) { indicatorOffset.toDp() })
+                                    .size(
+                                        width = with(density) { indicatorWidth.toDp() },
+                                        height = 36.dp
+                                    )
+                                    .background(GlowBlue, CircleShape)
+                            )
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            SubTabItem(
+                                label = "Groups",
+                                isSelected = selectedTab == 0,
+                                onClick = { selectedTab = 0 },
+                                modifier = Modifier.onGloballyPositioned { groupsTabSize = it.size }
+                            )
+                            SubTabItem(
+                                label = "Community",
+                                isSelected = selectedTab == 1,
+                                onClick = { selectedTab = 1 },
+                                modifier = Modifier.onGloballyPositioned { communityTabSize = it.size }
+                            )
+                        }
                     }
                 }
 

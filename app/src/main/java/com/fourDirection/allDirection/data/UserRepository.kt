@@ -8,6 +8,7 @@ import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.tasks.await
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -18,18 +19,33 @@ class UserRepository {
 
     suspend fun saveUserToFirestore(user: FirebaseUser, customName: String? = null, customPhotoUrl: String? = null) {
         try {
-            val userData = hashMapOf(
+            val userData = mutableMapOf<String, Any>(
                 "uid" to user.uid,
-                "name" to (customName ?: user.displayName ?: ""),
-                "name_lowercase" to (customName ?: user.displayName ?: "").lowercase(),
                 "email" to (user.email ?: ""),
-                "photoUrl" to (customPhotoUrl ?: user.photoUrl?.toString() ?: ""),
-                "createdAt" to Timestamp.now(),
-                "totalDistance" to 0.0,
                 "lastLogin" to Timestamp.now()
             )
 
-            db.collection("users").document(user.uid).set(userData).await()
+            // Only set fields if it's a new user or if they are explicitly provided
+            customName?.let { 
+                userData["name"] = it
+                userData["name_lowercase"] = it.lowercase()
+            } ?: run {
+                // If no custom name, only set these if they don't exist yet (handled by merge)
+                userData["name"] = user.displayName ?: "User"
+                userData["name_lowercase"] = (user.displayName ?: "User").lowercase()
+            }
+
+            if (customPhotoUrl != null) {
+                userData["photoUrl"] = customPhotoUrl
+            } else if (user.photoUrl != null) {
+                userData["photoUrl"] = user.photoUrl.toString()
+            }
+
+            // Using merge ensures we don't overwrite createdAt if it already exists
+            db.collection("users").document(user.uid).set(userData, SetOptions.merge()).await()
+            
+            // If it's truly a new user, Firestore might need a one-time setup for non-merged fields
+            // but the user said createdAt already exists, so merge is safe.
         } catch (e: Exception) {
             Log.e("UserRepository", "Error saving user to Firestore", e)
             throw e

@@ -1,5 +1,6 @@
 package com.fourDirection.allDirection.page.main
 
+import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
@@ -65,7 +66,13 @@ fun MainContainer(
     var isBudgetTrackerVisible by remember { mutableStateOf(false) }
     var isConnectionsVisible by remember { mutableStateOf(false) }
     var isAccountVisible by remember { mutableStateOf(false) }
+    var isSettingsVisible by remember { mutableStateOf(false) }
     var selectedGroup by remember { mutableStateOf<Map<String, Any>?>(null) }
+    
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val sharedPrefs = remember { context.getSharedPreferences("user_prefs", Context.MODE_PRIVATE) }
+    var distanceUnit by remember { mutableStateOf(sharedPrefs.getString("distance_unit", "km") ?: "km") }
+
     var shouldFocusExploreSearch by remember { mutableStateOf(false) }
     var isRoutingActive by remember { mutableStateOf(false) }
     var plannerSubTab by remember { mutableStateOf(0) } // 0 for Map, 1 for Calendar
@@ -84,7 +91,7 @@ fun MainContainer(
     val hazeState = remember { HazeState() }
 
     // Handle system back button
-    BackHandler(enabled = selectedItem != 0 || isCurrencyConverterVisible || isTipCalculatorVisible || isEmergencyInfoVisible || isBudgetTrackerVisible || isConnectionsVisible || isAccountVisible || selectedGroup != null || isPlannerCreationMode) {
+    BackHandler(enabled = selectedItem != 0 || isCurrencyConverterVisible || isTipCalculatorVisible || isEmergencyInfoVisible || isBudgetTrackerVisible || isConnectionsVisible || isAccountVisible || isSettingsVisible || selectedGroup != null || isPlannerCreationMode) {
         if (isCurrencyConverterVisible) {
             isCurrencyConverterVisible = false
         } else if (isTipCalculatorVisible) {
@@ -97,6 +104,8 @@ fun MainContainer(
             isConnectionsVisible = false
         } else if (isAccountVisible) {
             isAccountVisible = false
+        } else if (isSettingsVisible) {
+            isSettingsVisible = false
         } else if (selectedGroup != null) {
             selectedGroup = null
         } else if (isPlannerCreationMode) {
@@ -110,7 +119,7 @@ fun MainContainer(
         containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
-            if (!isCurrencyConverterVisible && !isTipCalculatorVisible && !isEmergencyInfoVisible && !isBudgetTrackerVisible && !isConnectionsVisible && !isAccountVisible && selectedGroup == null) {
+            if (!isCurrencyConverterVisible && !isTipCalculatorVisible && !isEmergencyInfoVisible && !isBudgetTrackerVisible && !isConnectionsVisible && !isAccountVisible && !isSettingsVisible && selectedGroup == null) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -181,6 +190,7 @@ fun MainContainer(
                     userName = userName,
                     totalDistance = totalDistance,
                     period = period,
+                    distanceUnit = distanceUnit,
                     hazeState = hazeState,
                     onCurrencyClick = { isCurrencyConverterVisible = true },
                     onTipClick = { isTipCalculatorVisible = true },
@@ -311,7 +321,8 @@ fun MainContainer(
                     userPhotoUrl = userPhotoUrl,
                     onSignOut = onSignOut,
                     onAccountClick = { isAccountVisible = true },
-                    onConnectionsClick = { isConnectionsVisible = true }
+                    onConnectionsClick = { isConnectionsVisible = true },
+                    onSettingsClick = { isSettingsVisible = true }
                 )
             }
 
@@ -341,6 +352,13 @@ fun MainContainer(
                     photoUrl = userPhotoUrl,
                     onDismiss = { isAccountVisible = false },
                     onUpdateSuccess = onUserUpdate
+                )
+            }
+
+            if (isSettingsVisible) {
+                SettingsPage(
+                    onDismiss = { isSettingsVisible = false },
+                    onUnitChanged = { distanceUnit = it }
                 )
             }
 
