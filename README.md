@@ -105,7 +105,7 @@ Our prototype demonstrates the main user flow and key features of the applicatio
 <summary>View Home Page</summary>
 
 <p align="center">
-  <img src="Images/homepage.jpeg" width="700">
+  <img src="images/homepage.jpeg" width="700">
 </p>
 
 </details>
@@ -118,12 +118,12 @@ The home page provides users with quick access to the main functions of the appl
 <summary>View AI Trip Planner</summary>
 
 <p align="center">
-  <img src="Images/ai_planner.jpeg" width="700">
+  <img src="images/ai_planner.jpeg" width="700">
 </p>
 
 </details>
 
-The AI Trip Planner helps users create and organize their travel plans based on their preferences and requirements.
+The AI Trip Planner helps users create and organize their travel plans based on their preferences and requirements. It also provides users with real-time assistance and travel-related recommendations.
 
 #### 3. Budget Tracker
 
@@ -131,7 +131,7 @@ The AI Trip Planner helps users create and organize their travel plans based on 
 <summary>View Budget Tracker</summary>
 
 <p align="center">
-  <img src="Images/budget_tracker.jpeg" width="700">
+  <img src="images/budget_tracker.jpeg" width="700">
 </p>
 
 </details>
@@ -144,25 +144,25 @@ The Budget Tracker allows users to monitor and manage their travel expenses in o
 <summary>View Navigation</summary>
 
 <p align="center">
-  <img src="Images/map.png" width="700">
+  <img src="images/map.png" width="700">
 </p>
 
 </details>
 
 The navigation feature helps users find and navigate to their destinations without switching to another application.
 
-#### 5. AI Co-pilot
+#### 5. In-app Calendar
 
 <details>
-<summary>View AI Co-pilot</summary>
+<summary>View In-app Calendar</summary>
 
 <p align="center">
-  <img src="Images/ai_copilot.png" width="700">
+  <img src="images/calendar.png" width="700">
 </p>
 
 </details>
 
-The AI Co-pilot provides users with real-time assistance and travel-related recommendations.
+The in-app Calendar provides users a interactive way to plan a trip, while being able to collaborate with other people should users share the plan.
 
 #### 6. Emergency Information
 
@@ -170,7 +170,7 @@ The AI Co-pilot provides users with real-time assistance and travel-related reco
 <summary>View Emergency Information</summary>
 
 <p align="center">
-  <img src="Images/emergency.png" width="700">
+  <img src="images/emergency.png" width="700">
 </p>
 
 </details>
