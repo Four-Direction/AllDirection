@@ -105,7 +105,7 @@ Our prototype demonstrates the main user flow and key features of the applicatio
 <summary>View Home Page</summary>
 
 <p align="center">
-  <img src="Images/homepage.png" width="700">
+  <img src="Images/homepage.jpeg" width="700">
 </p>
 
 </details>
@@ -118,7 +118,7 @@ The home page provides users with quick access to the main functions of the appl
 <summary>View AI Trip Planner</summary>
 
 <p align="center">
-  <img src="Images/ai_planner.png" width="700">
+  <img src="Images/ai_planner.jpeg" width="700">
 </p>
 
 </details>
@@ -131,7 +131,7 @@ The AI Trip Planner helps users create and organize their travel plans based on 
 <summary>View Budget Tracker</summary>
 
 <p align="center">
-  <img src="Images/budget_tracker.png" width="700">
+  <img src="Images/budget_tracker.jpeg" width="700">
 </p>
 
 </details>
