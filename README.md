@@ -3,6 +3,7 @@
 **Problem** **Statement**: Lifestyle Track: Planning an Escape (Travel Planner)  
 **Video** **Presentation**:  
 https://www.youtube.com/watch?v=oTffZj4Oivg
+
 **Presentation** **Slides**:   
 [![Presentation Cover](./docs/cover_image.jpg)](./docs/all_directions.pdf)
 
