@@ -9,7 +9,7 @@
 Travelers often have to switch between multiple apps for different purposes, such as budget tracking, AI assistance, navigation, and social communication. This creates an inconvenient and fragmented experience, making it harder to manage everything in one place.
 
 **Our Solution:**  
-Our app integrates these essential functions into a single travel platform. It combines **budget tracking, AI trip planning, navigation, an AI co-pilot, emergency information, group chat, and a community platform** to provide travelers with a more seamless, convenient, and comprehensive travel experience. Besides that, each feature is designed with unique improvements and advantages compared to existing solutions in the market.
+Our app is an **AI-centered travel ecosystem**. Unlike traditional planners, our AI acts as a central "Brain" that doesn't just recommend—it **executes**. By leveraging advanced AI orchestration, the platform automatically triggers app functions like the **Calendar** to schedule trips and the **Budget Planner** to allocate funds, providing a unified, hands-free experience that manages the complexity of travel in one place.
 
 <details>
 <summary>View Project Overview</summary>
@@ -185,13 +185,14 @@ Our application is designed to differentiate itself from existing travel applica
 
 | **Feature** | **Our Solution** | **What Makes It Different** |
 |---|---|---|
-| **Budget Tracker** | [Describe your feature] | [What makes it different from existing solutions?] |
-| **AI Trip Planner** | [Describe your feature] | [Unique advantage / innovation] |
-| **Navigation** | [Describe your feature] | [Unique advantage / innovation] |
-| **AI Co-pilot** | [Describe your feature] | [Unique advantage / innovation] |
-| **Emergency Information** | [Describe your feature] | [Unique advantage / innovation] |
-| **Group Chat** | [Describe your feature] | [Unique advantage / innovation] |
-| **Community** | [Describe your feature] | [Unique advantage / innovation] |
+| **Budget Planner** | A multi-traveler planning engine with smart templates (Backpacker to Luxury), safety buffer sliders, and live cost-per-day analysis. | Offers "peace of mind" via auto-calculated emergency funds and synchronizes custom categories globally across all user trips. |
+| **Budget Tracker** | A real-time spending HUD with "Spending Pulse" ring visualizations and automated carry-over logic. | Intelligently calculates daily allowances by carrying over surpluses or deficits from previous days, turning a static plan into an active travel assistant. |
+| **AI Trip Planner** | An intelligent orchestrator that generates full itineraries and automatically populates the app's **Calendar** and **Budget Planner**. | It doesn't just give text advice; it uses "App Functions" to build the actual trip structure for the user, eliminating manual entry. |
+| **Navigation** | An integrated map service that provides turn-by-turn navigation directly to destinations found in the user's AI-planned itinerary. | Built directly into the ecosystem to ensure a seamless transition from planning to traveling without the friction of external apps. |
+| **AI Co-pilot** | A real-time travel assistant that monitors your trip progress and spending health. | Acts as a proactive advisor that can suggest budget adjustments or route changes based on live data from the Tracker and Map. |
+| **Emergency Information** | A global database providing instant access to local emergency contacts like Police, Ambulance, and Fire Departments for multiple countries. | Designed for high-stress situations with an offline-first approach, ensuring critical help is just one tap away regardless of roaming data status. |
+| **Group Chat** | A collaborative workspace where travelers can "connect" in real-time to discuss and build itineraries together. | Deeply integrated with the Calendar and Budgeting tools, allowing group members to vote on plans and view shared expenses within the conversation. |
+| **Community** | A social platform for users to connect and exchange expert travel tips, destination guides, and general travel wisdom. | Leverages peer-verified "crowd knowledge" to help users discover hidden gems and local secrets that typical search engines might miss. |
 
 <details>
 <summary>View App Core Function</summary>
@@ -202,7 +203,7 @@ Our application is designed to differentiate itself from existing travel applica
 
 ### Key Innovation
 
-**Our main difference is the integration of multiple travel functions into one ecosystem.** Instead of requiring users to switch between different applications, our platform brings planning, navigation, budgeting, AI assistance, communication, and emergency information together in one place.
+**Our main innovation is "AI-Led Orchestration."** Instead of a collection of isolated tools, the AI serves as a connective tissue. When the AI plans a trip, it autonomously "uses" the other features—setting up the Calendar, configuring the Budget Planner, and preparing Navigation—so the traveler can focus on the experience rather than the logistics.
 
 ---
 
@@ -212,13 +213,13 @@ Our application is designed to differentiate itself from existing travel applica
 
 | **Category** | **Technology** | **Purpose** | **Why We Chose It** |
 |---|---|---|---|
-| **Frontend** | [Technology] | Build the user interface | [Reason] |
-| **Backend** | [Technology] | Handle application logic and requests | [Reason] |
-| **Database** | [Technology] | Store user and application data | [Reason] |
-| **AI** | [AI API / Model] | Provide AI-powered features | [Reason] |
-| **Maps / Navigation** | [API / Service] | Provide location and navigation services | [Reason] |
-| **Authentication** | [Technology] | Manage user accounts and authentication | [Reason] |
-| **Hosting** | [Platform] | Host the application | [Reason] |
+| **Frontend** | Jetpack Compose | Build the user interface | Modern, declarative toolkit that allows for highly decorative UIs and rapid development. |
+| **Backend** | Firebase Auth / Ktor | Handle application logic and requests | Firebase provides seamless auth, while Ktor handles efficient networking for live services (e.g., currency rates). |
+| **Database** | Cloud Firestore | Store user and application data | Real-time NoSQL database that enables instant synchronization across devices and collaborative planning. |
+| **AI** | Gemini 3.6 Flash | Provide AI-powered features | Chosen for its exceptional speed and low latency, enabling the real-time "Orchestration" required for reactive trip planning. |
+| **Maps / Navigation** | Mapbox SDK | Provide location and navigation services | Offers superior custom map styling and powerful search/routing APIs specifically for travel apps. |
+| **Authentication** | Firebase Authentication | Manage user accounts and authentication | Secure, scalable solution that supports Email/Password and Google Sign-In out of the box. |
+| **Hosting** | Render (Web Service) | Host the backend and API services | Provides a reliable and scalable environment for our microservices with automated deployment pipelines. |
 
 ---
 
@@ -253,28 +254,28 @@ During the building phase, we will focus on developing the core features that ar
 
 ### Phase 1 – Core Application
 
-- [ ] Develop the main application interface
-- [ ] Implement user navigation
-- [ ] Set up the database
-- [ ] Implement user authentication
+- [x] Develop the main application interface
+- [x] Implement user navigation
+- [x] Set up the database
+- [x] Implement user authentication
 
 ### Phase 2 – Main Features
 
-- [ ] Budget Tracker
-- [ ] AI Trip Planner
-- [ ] Map / Navigation
-- [ ] AI Co-pilot
-- [ ] Emergency Information
-- [ ] Group Chat
-- [ ] Community
+- [x] Budget Planner & Tracker
+- [x] AI Trip Planner
+- [x] Map / Navigation
+- [x] AI Co-pilot
+- [x] Emergency Information
+- [x] Group Chat
+- [x] Community
 
 ### Phase 3 – Integration & Testing
 
-- [ ] Integrate all major features
-- [ ] Connect external APIs
-- [ ] Test the main user flows
-- [ ] Fix bugs and improve usability
-- [ ] Conduct final testing
+- [x] Integrate all major features
+- [x] Connect external APIs
+- [x] Test the main user flows
+- [x] Fix bugs and improve usability
+- [x] Conduct final testing
 
 ### Project Scope
 
