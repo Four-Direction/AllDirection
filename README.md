@@ -3,7 +3,7 @@
 **Problem** **Statement**: Lifestyle Track: Planning an Escape (Travel Planner)  
 **Video** **Presentation**:   
 **Presentation** **Slides**:   
-[![Presentation Cover](./docs/cover_image.jpeg)](./docs/all_directions.pdf)
+[![Presentation Cover](./docs/cover_image.jpg)](./docs/all_directions.pdf)
 
 > **[Download Full PDF Presentation](./docs/all_directions.pdf)** | **[PowerPoint (.pptx)](./docs/all_directions.pptx)**
 
