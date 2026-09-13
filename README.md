@@ -190,6 +190,7 @@ Our application is designed to differentiate itself from existing travel applica
 | **AI Trip Planner** | An intelligent orchestrator that generates full itineraries and automatically populates the app's **Calendar** and **Budget Planner**. | It doesn't just give text advice; it uses "App Functions" to build the actual trip structure for the user, eliminating manual entry. |
 | **Navigation** | An integrated map service that provides turn-by-turn navigation directly to destinations found in the user's AI-planned itinerary. | Built directly into the ecosystem to ensure a seamless transition from planning to traveling without the friction of external apps. |
 | **AI Co-pilot** | A real-time travel assistant that monitors your trip progress and spending health. | Acts as a proactive advisor that can suggest budget adjustments or route changes based on live data from the Tracker and Map. |
+| **In-app Calendar** | An in-app calendar that is able to record plans such as planned locations to visit, hotels to stay at, and notes to keep track off. | Integration with **AI Trip Planner** and **Navigation**, allows the AI to update your plans, and view routes and photos in-app. Allows collaboration with other people in **Group Chat**, helping people in a group plan hassle free. |
 | **Emergency Information** | A global database providing instant access to local emergency contacts like Police, Ambulance, and Fire Departments for multiple countries. | Designed for high-stress situations with an offline-first approach, ensuring critical help is just one tap away regardless of roaming data status. |
 | **Group Chat** | A collaborative workspace where travelers can "connect" in real-time to discuss and build itineraries together. | Deeply integrated with the Calendar and Budgeting tools, allowing group members to vote on plans and view shared expenses within the conversation. |
 | **Community** | A social platform for users to connect and exchange expert travel tips, destination guides, and general travel wisdom. | Leverages peer-verified "crowd knowledge" to help users discover hidden gems and local secrets that typical search engines might miss. |
@@ -227,9 +228,9 @@ Our application is designed to differentiate itself from existing travel applica
 
 | **Service / API** | **Purpose** | **Expected Constraints** |
 |---|---|---|
-| [API Name] | [What it is used for] | [API limits / cost / dependency] |
-| [API Name] | [What it is used for] | [API limits / cost / dependency] |
-| [API Name] | [What it is used for] | [API limits / cost / dependency] |
+| Mapbox Canvas API | Allows us to render visual space, allowing map data to be shown visually to all users. | There are rate limits per minute, which exceeding returns HTTP 429. |
+| Google Places API (New) | Allows us to gather data such as photos and reviews about physical locations, businesses, landmarks, and points of interest (POIs) globally. | Using Googles Pay-as-you-go policy, we are only allowed limited request per month.|
+| Google Gemini API | Allows us to use Google Gemini AI as a source of AI interactions. | We are limited to Flash and Flash-Lite models only as a free tier user, so we can only make typically 5–15 Requests per minute |
 
 ---
 
@@ -286,8 +287,9 @@ The minimum viable product (MVP) will focus on:
 1. **AI Trip Planning**
 2. **Budget Tracking**
 3. **Navigation**
-4. **AI Co-pilot**
-5. **Emergency Information**
+5. **AI Co-pilot**
+6. **In-app Calendar**
+7. **Emergency Information**
 
 Additional features such as **Group Chat and Community** will be implemented based on the remaining development time and technical feasibility.
 
