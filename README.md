@@ -1,8 +1,8 @@
 # Direction by Four Direction
 **Team**: Tan Yi, Lee Jun Le, Kho Kian Bin, Shawn  
 **Problem** **Statement**: Lifestyle Track: Planning an Escape (Travel Planner)  
-**Video** **Presentation**:  )
-> **[Youtube link]([](https://www.youtube.com/watch?v=oTffZj4Oivg)**
+**Video** **Presentation**:  
+https://www.youtube.com/watch?v=oTffZj4Oivg
 **Presentation** **Slides**:   
 [![Presentation Cover](./docs/cover_image.jpg)](./docs/all_directions.pdf)
 
