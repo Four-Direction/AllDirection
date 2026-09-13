@@ -40,19 +40,6 @@ The following table summarizes the main ideas generated during our ideation proc
 
 ---
 
-## 2.2 Ideation Boards
-
-Our team used different ideation methods to explore the problem, generate possible solutions, and identify the most valuable features for our target users.
-
-### Mindmap
-
-<details>
-<summary>View Mindmap</summary>
-
-<p align="center">
-  <img src="images/mindmap.png" width="700">
-</p>
-
 ## 2.3 Mentor Consultation
 
 | **Date** | **Mentor** | **Feedback Received** |
