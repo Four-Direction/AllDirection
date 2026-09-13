@@ -85,11 +85,9 @@ This board shows the different ideas discussed by our team, including both selec
 
 ## 2.3 Mentor Consultation
 
-| **Date** | **Mentor** | **Feedback Received** | **What Was Changed** |
+| **Date** | **Mentor** | **Feedback Received** |
 |---|---|---|---|
-| 3/9/2026 | Jerod Tan | The slides contain many low-value images that fail to convey any useful information. Instead, the presentation should contrast our app's core functions with the current market landscape to highlight our competitive advantage. Additionally, it was suggested that we integrate AI into our app—specifically recommending some AI APIs—and that we shouldn't make the app entirely free. |  |
-| [DD/MM/YYYY] | [Mentor Name] | [Describe the feedback received.] | [Describe what was changed.] |
-| [DD/MM/YYYY] | [Mentor Name] | [Describe the feedback received.] | [Describe what was changed.] |
+| 3/9/2026 | Jerod Tan | The slides contain many low-value images that fail to convey any useful information. Instead, the presentation should contrast our app's core functions with the current market landscape to highlight our competitive advantage. Additionally, it was suggested that we integrate AI into our app—specifically recommending some AI APIs—and that we shouldn't make the app entirely free. | 
 
 ---
 
