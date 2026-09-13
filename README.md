@@ -40,7 +40,7 @@ The following table summarizes the main ideas generated during our ideation proc
 
 ---
 
-## 2.3 Mentor Consultation
+## 2.2 Mentor Consultation
 
 | **Date** | **Mentor** | **Feedback Received** |
 |---|---|---|---|
