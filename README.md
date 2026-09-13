@@ -144,7 +144,7 @@ The Budget Tracker allows users to monitor and manage their travel expenses in o
 <summary>View Navigation</summary>
 
 <p align="center">
-  <img src="images/map.png" width="400">
+  <img src="images/map.jpeg" width="400">
 </p>
 
 </details>
@@ -157,7 +157,7 @@ The navigation feature helps users find and navigate to their destinations witho
 <summary>View In-app Calendar</summary>
 
 <p align="center">
-  <img src="images/calendar.png" width="400">
+  <img src="images/calendar.jpeg" width="400">
 </p>
 
 </details>
@@ -170,7 +170,7 @@ The in-app Calendar provides users a interactive way to plan a trip, while being
 <summary>View Emergency Information</summary>
 
 <p align="center">
-  <img src="images/emergency.png" width="400">
+  <img src="images/emergency.jpeg" width="400">
 </p>
 
 </details>
