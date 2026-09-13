@@ -105,7 +105,7 @@ Our prototype demonstrates the main user flow and key features of the applicatio
 <summary>View Home Page</summary>
 
 <p align="center">
-  <img src="images/homepage.jpeg" width="700">
+  <img src="images/homepage.jpeg" width="400">
 </p>
 
 </details>
@@ -118,7 +118,7 @@ The home page provides users with quick access to the main functions of the appl
 <summary>View AI Trip Planner</summary>
 
 <p align="center">
-  <img src="images/ai_planner.jpeg" width="700">
+  <img src="images/ai_planner.jpeg" width="400">
 </p>
 
 </details>
@@ -131,7 +131,7 @@ The AI Trip Planner helps users create and organize their travel plans based on 
 <summary>View Budget Tracker</summary>
 
 <p align="center">
-  <img src="images/budget_tracker.jpeg" width="700">
+  <img src="images/budget_tracker.jpeg" width="400">
 </p>
 
 </details>
@@ -144,7 +144,7 @@ The Budget Tracker allows users to monitor and manage their travel expenses in o
 <summary>View Navigation</summary>
 
 <p align="center">
-  <img src="images/map.png" width="700">
+  <img src="images/map.png" width="400">
 </p>
 
 </details>
@@ -157,7 +157,7 @@ The navigation feature helps users find and navigate to their destinations witho
 <summary>View In-app Calendar</summary>
 
 <p align="center">
-  <img src="images/calendar.png" width="700">
+  <img src="images/calendar.png" width="400">
 </p>
 
 </details>
@@ -170,7 +170,7 @@ The in-app Calendar provides users a interactive way to plan a trip, while being
 <summary>View Emergency Information</summary>
 
 <p align="center">
-  <img src="images/emergency.png" width="700">
+  <img src="images/emergency.png" width="400">
 </p>
 
 </details>
