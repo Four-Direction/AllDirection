@@ -44,7 +44,7 @@ Our team used different ideation methods to explore the problem, generate possib
 <summary>View Mindmap</summary>
 
 <p align="center">
-  <img src="Images/mindmap.png" width="700">
+  <img src="images/mindmap.png" width="700">
 </p>
 
 </details>
@@ -57,7 +57,7 @@ The mindmap shows how our team broke down the travel planning problem and explor
 <summary>View Problem Tree</summary>
 
 <p align="center">
-  <img src="Images/problem_tree.png" width="700">
+  <img src="images/problem_tree.png" width="700">
 </p>
 
 </details>
@@ -70,7 +70,7 @@ The problem tree helped us identify the main problems faced by travelers, their 
 <summary>View Additional Ideation Board</summary>
 
 <p align="center">
-  <img src="Images/ideation_board.png" width="700">
+  <img src="images/ideation_board.png" width="700">
 </p>
 
 </details>
